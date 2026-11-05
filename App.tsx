@@ -265,7 +265,7 @@ function Main() {
           <Choices compact label="Return stroke" value={obs.returnStroke} options={[{ value: 'forehand', label: 'Forehand' }, { value: 'backhand', label: 'Backhand' }, { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Not seen' }]} disabled={busy} onChange={returnStroke => void saveDraft({ ...obs, returnStroke })} />
         </>}
       </Card>}
-      {missedReturner !== null ? <Stack>
+      {missedReturner !== null ? <Card style={{ padding: 10, gap: 8 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <T bold style={{ flexShrink: 1 }}>{record.players[missedReturner].name} missed the return</T>
           <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
@@ -278,7 +278,7 @@ function Main() {
             onPress={() => void savePoint({ type: 'ending', actor: missedReturner, ending, stroke: obs.returnStroke, observations: obs })}
           >{endingNames[ending]}</Button>)}
         </View>
-      </Stack> : record.mode === 'score' ? <Stack>
+      </Card> : record.mode === 'score' ? <Stack>
         <T bold style={{ fontSize: 19 }}>Who won the point?</T>
         <View style={layout.two}>
           {([0, 1] as const).map(side => <Button
