@@ -71,14 +71,19 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
         const active = score.status === 'in-progress' || score.status === 'suspended';
         return <Card key={match.id} style={{ gap: 8 }}>
           <T bold style={{ fontSize: 17, lineHeight: 22 }}>{match.players[0].name} vs {match.players[1].name}</T>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Text style={{ color: c.ink, fontSize: 24, fontWeight: '700', lineHeight: 28, letterSpacing: -0.8, fontVariant: ['tabular-nums'] }}>{resultLabel(score)}</Text>
-            <View style={{ backgroundColor: active ? c.soft : c.bg, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 9 }}>
-              <T small bold style={{ color: active ? c.ink : c.sub }}>{statusLabels[score.status]}</T>
+          <Row style={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+              <Text style={{ color: c.ink, fontSize: 24, fontWeight: '700', lineHeight: 28, letterSpacing: -0.8, fontVariant: ['tabular-nums'] }}>{resultLabel(score)}</Text>
+              <T small muted>{match.date} · {points.length} {points.length === 1 ? 'recorded point' : 'recorded points'}</T>
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 5 }}>
+              <View style={{ backgroundColor: active ? c.soft : c.bg, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 9 }}>
+                <T small bold style={{ color: active ? c.ink : c.sub }}>{statusLabels[score.status]}</T>
+              </View>
+              {active && <Button primary compact style={{ paddingHorizontal: 9 }} disabled={busy} onPress={() => onOpenMatch(match)}>Resume match</Button>}
             </View>
           </Row>
-          <T small muted>{match.date} · {points.length} {points.length === 1 ? 'recorded point' : 'recorded points'}</T>
-          <Button primary={active} disabled={busy} onPress={() => onOpenMatch(match)}>{active ? 'Resume match' : 'Open report'}</Button>
+          {!active && <Button disabled={busy} onPress={() => onOpenMatch(match)}>Open report</Button>}
         </Card>;
       })}
     </View>)}
