@@ -19,7 +19,7 @@ export function playerPerformance(matches: readonly MatchRecord[], name: string,
 
 export type PlayerPerformanceReport = ReturnType<typeof playerPerformance>;
 
-export function performanceCountLabels(report: PlayerPerformanceReport): string[] {
+export function performanceCountLabels(report: PlayerPerformanceReport): [string, string] {
   return [
     `${report.matchCount} ${report.matchCount === 1 ? 'match' : 'matches'} · ${report.pointCount} recorded ${report.pointCount === 1 ? 'point' : 'points'}`,
     `${report.wins} won · ${report.losses} lost · ${report.undecided} without a result`,
