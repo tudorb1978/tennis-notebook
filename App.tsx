@@ -21,7 +21,7 @@ import type { MatchDraft, MatchRecord, PlayerProfile } from './src/storage/model
 import { endingNames, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
 import { pointNoteLabels, pointNoteSummary } from './src/reports/pointNotes.ts';
 import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
-import { AppTheme, Button, Card, Choices, Eyebrow, Heading, Notice, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
+import { AppTheme, Button, Card, Choices, Divider, Eyebrow, Heading, Notice, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
 import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, modeOptions, PointEditor, SetupForm } from './src/ui/forms.tsx';
 import type { SetupValues } from './src/ui/forms.tsx';
 import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
@@ -264,6 +264,7 @@ function Main() {
               <Button disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
           </React.Fragment>;
         })}
+        <Divider />
         <Button disabled={busy} onPress={() => void savePoint({ type: 'winner-only', winner, observations: obs })}>Not sure how it ended</Button>
       </Card>;
     }
