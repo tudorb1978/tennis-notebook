@@ -175,6 +175,7 @@ function Main() {
   const restore = () => external(async () => { const text = await pickBackup(); if (text) setPanel({ kind: 'import', text, preview: await repository.current!.previewImport(text) }); });
 
   const openPointPanel = (kind: PointPanel, id: string) => { setError(''); setPanel({ kind, id }); };
+  const openMatchNotes = () => { setError(''); setPanel({ kind: 'match-notes' }); };
   const pointActions = (id: string, observations?: PointObservations) => <Row style={{ gap: 4 }}>
     <Button quiet disabled={busy} onPress={() => openPointPanel('edit-point', id)}>Edit point</Button>
     <Button quiet disabled={busy} onPress={() => openPointPanel('point-notes', id)}>{hasPointNotes(observations) ? 'Edit notes' : 'Add notes'}</Button>
@@ -400,7 +401,7 @@ function Main() {
       <Card style={{ gap: 5 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <T bold>Match notes</T>
-          <Button quiet compact disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'match-notes' }); }}>{matchNotes ? 'Edit match notes' : 'Add match notes'}</Button>
+          <Button quiet compact disabled={busy} onPress={openMatchNotes}>{matchNotes ? 'Edit match notes' : 'Add match notes'}</Button>
         </Row>
         {matchNotes ? <T>{matchNotes}</T> : <T small muted>Add observations about the match as a whole.</T>}
       </Card>
@@ -466,6 +467,7 @@ function Main() {
 
   const pinScore = screen === 'match' && tab === 'record' && projection?.score.status === 'in-progress'
     && height >= 720 && fontScale <= 1.3;
+  const showRecordingNotes = tab === 'record' && (projection?.score.status === 'in-progress' || projection?.score.status === 'suspended');
   const scoreboard = record && projection && <Scoreboard
     record={record} score={projection.score} timing={projection.timing} busy={busy}
     toggleServer={tab === 'record' ? togglePointServer : undefined}
@@ -480,10 +482,13 @@ function Main() {
         <Image source={require('./assets/tennis-notebook.png')} style={{ width: 34, height: 34, borderRadius: 8 }} accessible={false} />
         {screen === 'home' || screen === 'loading'
           ? <T bold>Tennis Notebook</T>
-          : <Button quiet testID="back-to-matches" disabled={busy} onPress={() => void home()}>‹ Matches</Button>}
+          : <Button quiet compact={showRecordingNotes} testID="back-to-matches" disabled={busy} onPress={() => void home()}>‹ Matches</Button>}
       </View>
       {busy ? <View accessibilityLiveRegion="polite"><T small muted>Saving…</T></View>
-        : screen === 'match' && record && <Button quiet onPress={() => { setError(''); setPanel({ kind: 'match-details' }); }}>Match details</Button>}
+        : screen === 'match' && record && <Row style={{ flex: 1, minWidth: 0, justifyContent: 'flex-end', gap: 4 }}>
+          {showRecordingNotes && <Button quiet compact onPress={openMatchNotes}>Match notes</Button>}
+          <Button quiet compact={showRecordingNotes} onPress={() => { setError(''); setPanel({ kind: 'match-details' }); }}>Match details</Button>
+        </Row>}
     </View>
     {pinScore && <View style={{ width: '100%', maxWidth: 620, alignSelf: 'center', paddingHorizontal: 18, paddingBottom: 5 }}>{scoreboard}</View>}
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
