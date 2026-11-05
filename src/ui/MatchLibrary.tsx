@@ -75,11 +75,11 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
             <Text style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 26, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>{resultLabel(score)}</Text>
             <T small muted>{match.date} · {points.length} {points.length === 1 ? 'recorded point' : 'recorded points'}</T>
           </View>
-          <View style={{ gap: 6 }}>
+          <View style={{ gap: 8 }}>
             <View style={{ backgroundColor: active ? c.soft : c.bg, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 9 }}>
               <T small bold style={{ color: active ? c.ink : c.sub, textAlign: 'center' }}>{statusLabels[score.status]}</T>
             </View>
-            <Button primary={active} compact style={{ paddingHorizontal: 9 }} disabled={busy} onPress={() => onOpenMatch(match)}>{active ? 'Resume match' : 'Open report'}</Button>
+            <Button quiet compact disabled={busy} onPress={() => onOpenMatch(match)}>{active ? 'Resume match' : 'Open report'}</Button>
           </View>
         </Card>;
       })}
