@@ -283,7 +283,7 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await page.setViewportSize({width:320,height:915});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.getByTestId('back-to-matches').click();const chooserAgain=page.waitForEvent('filechooser');await button('Restore backup').click();await (await chooserAgain).setFiles(backupPath);await expect(page.getByText('0 new players and 0 new matches.',{exact:true})).toBeVisible();await expect(button('Import new records')).toBeDisabled();await button('Cancel').click();
     const taylorMatch=page.getByText('Alex vs Taylor',{exact:true});
-    await taylorMatch.locator('..').getByRole('button',{name:'Resume match',exact:true}).click();
+    await taylorMatch.locator('../..').getByRole('button',{name:'Resume match',exact:true}).click();
     await pickWinner(0);await expect(page.getByText('Last shot of the rally',{exact:true})).toBeVisible();
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await button('Change winner').click();
