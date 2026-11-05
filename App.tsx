@@ -264,7 +264,7 @@ function Main() {
               <Button disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
           </React.Fragment>;
         })}
-        <View style={{ marginTop: 12, borderTopWidth: 2, borderTopColor: c.accent, paddingTop: 12 }}>
+        <View style={{ marginTop: 12, borderTopWidth: 2, borderTopColor: '#8c8c8c', paddingTop: 12 }}>
           <Button style={{ backgroundColor: c.bg }} disabled={busy} onPress={() => void savePoint({ type: 'winner-only', winner, observations: obs })}>Not sure how it ended</Button>
         </View>
       </Card>;
