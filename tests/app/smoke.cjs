@@ -213,15 +213,26 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await button('Jamie · Bad body language').click();
     await page.getByTestId('save-point-notes').click();await expect(button('Save notes')).toHaveCount(0);await points('0','15');
 
-    await correction([3,3],[6,6]);await points('6','6');await record(0,'winner','forehand');await points('7','6');await record(0,'winner','overhead');await points('0','0');
-    await correction([0,3],[0,3]);await record(1,'winner','forehand');await points('0','0');
+    const alexStakes=page.getByTestId('point-stakes-0');
+    const jamieStakes=page.getByTestId('point-stakes-1');
+    await correction([3,3],[6,6]);await points('6','6');
+    await expect(alexStakes).toHaveCount(0);await expect(jamieStakes).toHaveCount(0);
+    await record(0,'winner','forehand');await points('7','6');await expect(alexStakes).toHaveText('Alex · Set point');
+    await record(0,'winner','overhead');await points('0','0');
+    await correction([0,3],[0,3]);await expect(jamieStakes).toHaveText('Jamie · Set point');
+    await otherServer.click();await expect(jamieStakes).toHaveText('Jamie · Set point · Break point');
+    await otherServer.click();await expect(jamieStakes).toHaveText('Jamie · Set point');
+    await record(1,'winner','forehand');await points('0','0');
     // The deciding match tie-break has no game fields.
     await button('Correct score').click();await page.getByRole('textbox',{name:'Alex points',exact:true}).fill('9');await page.getByRole('textbox',{name:'Jamie points',exact:true}).fill('9');await choose('Next server','Alex');await page.getByTestId('apply-correction').click();await idle();await points('9','9');
+    await expect(alexStakes).toHaveCount(0);await expect(jamieStakes).toHaveCount(0);
     await record(0,'winner','forehand');await points('10','9');
+    await expect(alexStakes).toHaveText('Alex · Match point');
     await button('Add notes').click();await page.getByRole('textbox',{name:'Notes',exact:true}).fill('Stayed composed at nine all.');
     await page.getByTestId('save-point-notes').click();await expect(button('Save notes')).toHaveCount(0);
     await page.clock.setFixedTime(new Date('2026-11-05T12:01:00Z'));
     await record(0,'winner','overhead');await points('11','9');await expect(page.getByText('Alex wins',{exact:true}).first()).toBeVisible();
+    await expect(alexStakes).toHaveCount(0);
     await page.clock.setFixedTime(new Date('2026-11-05T12:01:12Z'));
     await expect(matchClock).toHaveText('Playing time · 00:45');
     await page.getByTestId('tab-report').click();

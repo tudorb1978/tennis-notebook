@@ -185,6 +185,27 @@ export function awardPoint(score: MatchScore, winner: Side): MatchScore {
     phase: entersTieBreak ? 'set-tie-break' : 'game', tieBreakFirstServer: entersTieBreak ? server : null } };
 }
 
+export type PointStake = 'match' | 'set' | 'break';
+
+export function pointStakes(score: MatchScore, actualServer?: Side): readonly [readonly PointStake[], readonly PointStake[]] {
+  const current = score.current;
+  if (!current || score.status !== 'in-progress') return [[], []];
+  const receiver = other(actualServer ?? current.server);
+
+  const stakesFor = (side: Side): PointStake[] => {
+    const next = awardPoint(score, side);
+    const stageWon = next.completedStages.length > score.completedStages.length;
+    const stakes: PointStake[] = [];
+    if (next.status === 'completed') stakes.push('match');
+    else if (stageWon) stakes.push('set');
+    if (current.phase === 'game' && side === receiver && (stageWon || (next.current?.games[side] ?? 0) > current.games[side])) {
+      stakes.push('break');
+    }
+    return stakes;
+  };
+  return [stakesFor(0), stakesFor(1)];
+}
+
 export function pointLabels(score: MatchScore): readonly [string, string] {
   return score.current ? stagePointLabels(score.current) : ['—', '—'];
 }

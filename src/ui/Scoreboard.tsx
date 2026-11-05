@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { MatchTiming } from '../domain/history.ts';
-import { pointLabels } from '../domain/scoring.ts';
-import type { MatchScore } from '../domain/scoring.ts';
+import { pointLabels, pointStakes } from '../domain/scoring.ts';
+import type { MatchScore, PointStake } from '../domain/scoring.ts';
 import type { MatchRecord } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
 import { Button, Card, PlayerBadge, T, useTheme } from './kit.tsx';
+
+const stakeLabels: Record<PointStake, string> = { match: 'Match point', set: 'Set point', break: 'Break point' };
 
 function MatchClock({ playingMs, runningSinceMs }: { playingMs: number; runningSinceMs: number | null }) {
   const c = useTheme();
@@ -27,12 +29,13 @@ function MatchClock({ playingMs, runningSinceMs }: { playingMs: number; runningS
   </Text>;
 }
 
-export function Scoreboard({ record, score, timing, toggleServer, correctScore, busy }: {
+export function Scoreboard({ record, score, timing, toggleServer, correctScore, showPointStakes, busy }: {
   record: MatchRecord;
   score: MatchScore;
   timing: MatchTiming | null;
   toggleServer: (() => void) | undefined;
   correctScore: (() => void) | undefined;
+  showPointStakes: boolean;
   busy: boolean;
 }) {
   const c = useTheme(); const columns: { label: string; values: readonly [string, string]; large: boolean }[] = [];
@@ -43,6 +46,7 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
   }
   const overridden = record.draft.actualServer != null;
   const serving = score.status === 'in-progress' ? record.draft.actualServer ?? score.current!.server : null;
+  const stakes = showPointStakes ? pointStakes(score, serving ?? undefined) : null;
   const status = serving !== null
     ? `${record.players[serving].name} serving${overridden ? ' · this point only' : score.current!.phase !== 'game' ? ' · tie-break' : ''}`
     : score.winner !== null
@@ -80,6 +84,13 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
         }}>{col.values[side]}</Text>
       </View>)}
     </View>)}
+    {stakes?.some(labels => labels.length > 0) && <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
+      {([0, 1] as const).map(side => stakes[side].length > 0 && <View key={side} style={{ maxWidth: '100%', backgroundColor: c.lime, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2 }}>
+        <Text testID={`point-stakes-${side}`} style={{ color: c.limeInk, fontSize: 12, lineHeight: 18, fontWeight: '700' }}>
+          {[record.players[side].name, ...stakes[side].map(stake => stakeLabels[stake])].join(' · ')}
+        </Text>
+      </View>)}
+    </View>}
     <View style={{ ...row, marginTop: 3, borderTopWidth: 1, borderColor: c.courtLine, minHeight: 34 }}>
       <T small style={{ color: c.courtSub, flex: 1, minWidth: 0 }}>{status}</T>
       {serving !== null && (toggleServer || correctScore) && <View style={{ ...row, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '75%' }}>

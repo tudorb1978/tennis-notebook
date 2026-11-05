@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { awardPoint, changeLifecycle, correctCurrentStage, createScore, pointLabels, tieBreakServer, validateFormat } from '../../src/domain/scoring.ts';
+import { awardPoint, changeLifecycle, correctCurrentStage, createScore, pointLabels, pointStakes, tieBreakServer, validateFormat } from '../../src/domain/scoring.ts';
 import type { MatchFormat, MatchScore, SetRules, Side } from '../../src/domain/scoring.ts';
 import { presets } from '../../src/domain/presets.ts';
 
@@ -45,6 +45,14 @@ test('FAST4 deuce is a deciding point; its receiver wins without advantage', () 
   assert.equal(score.current!.server, 1);
 });
 
+test('FAST4 deciding points can give each player a different opportunity', () => {
+  const score = correctCurrentStage(createScore(presets['fast4-single'], 0), { games: [3, 2], points: [3, 3], nextServer: 0 });
+  assert.deepEqual(pointStakes(score), [['match'], ['break']]);
+  assert.deepEqual(pointStakes(score, 1), [['match', 'break'], []]);
+  assert.deepEqual(pointStakes(changeLifecycle(score, { type: 'suspend' })), [[], []]);
+  assert.deepEqual(pointStakes(awardPoint(score, 0)), [[], []]);
+});
+
 test('Normal games can return from advantage to deuce repeatedly', () => {
   let score = pointRun(createScore(presets['normal-match-tiebreak'], 0), [0, 0, 0, 1, 1, 1]);
   for (let i = 0; i < 5; i++) {
@@ -67,6 +75,17 @@ test('A normal set at 6–5 continues until 7–5', () => {
   assert.equal(score.completedStages[0]!.kind, 'set');
   assert.deepEqual((score.completedStages[0] as { games: readonly number[] }).games, [7, 5]);
   assert.equal(score.current!.server, 0);
+});
+
+test('A normal set point requires a game point and a two-game lead after winning the game', () => {
+  const match = createScore(presets['normal-match-tiebreak'], 0);
+  const close = correctCurrentStage(match, { games: [5, 4], points: [3, 3], nextServer: 1 });
+  assert.deepEqual(pointStakes(close), [[], []]);
+  const advantage = awardPoint(close, 0);
+  assert.deepEqual(pointStakes(advantage), [['set', 'break'], []]);
+  assert.deepEqual(pointStakes(advantage, 0), [['set'], []]);
+  const stillLevel = correctCurrentStage(match, { games: [5, 5], points: [4, 3], nextServer: 1 });
+  assert.deepEqual(pointStakes(stillLevel), [['break'], []]);
 });
 
 for (const [id, gameCount, finalGames] of [
@@ -138,6 +157,7 @@ test('Configured tie-break caps and one-point margins work without changing pres
   const format: MatchFormat = { version: 1, id: 'short-tie', name: 'Short tie-break', serviceLet: 'replay',
     stages: [{ kind: 'match-tie-break', tieBreak: { pointsToWin: 5, winBy: 2, cap: 5, serviceOrder: 'one-then-two' } }] };
   let score = pointRun(createScore(format, 0), [0, 1, 0, 1, 0, 1, 0, 1]);
+  assert.deepEqual(pointStakes(score), [['match'], ['match']]);
   score = awardPoint(score, 0);
   assert.equal(score.status, 'completed');
   const singleMargin: MatchFormat = { ...format, stages: [{ kind: 'match-tie-break', tieBreak: { pointsToWin: 7, winBy: 1, cap: null, serviceOrder: 'one-then-two' } }] };
