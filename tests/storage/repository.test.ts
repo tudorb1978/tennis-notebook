@@ -144,10 +144,16 @@ test('Backup validation rejects impossible dates and inconsistent serve drafts',
 
 test('Reports escape notes and keep spreadsheet formula inputs as text', () => {
   const match = fixture();
+  match.matchNotes = 'Hit <targets> early.\nTry more depth.';
   match.players[1].name = '=1+1';
-  match.events = [{ id: 'a', type: 'point', input: { type: 'ending', actor: 0, ending: 'winner', stroke: 'forehand', observations: { ...emptyDraft().observations, notes: '<script>private</script>' } } }];
+  match.events = [
+    { id: 'a', type: 'point', input: { type: 'winner-only', winner: 0 } },
+    { id: 'b', type: 'point', input: { type: 'ending', actor: 0, ending: 'winner', stroke: 'forehand', observations: { ...emptyDraft().observations, notes: '<script>private</script>' } } },
+  ];
   const html = reportHTML(match); assert.ok(!html.includes('<script>private'));
   assert.ok(html.includes('&lt;script&gt;private&lt;/script&gt;'));
+  assert.ok(html.includes('Hit &lt;targets&gt; early.\nTry more depth.'));
+  assert.ok(html.includes('Before point · Set 1 · Games 0–0 · Points 15–0'));
   const csv = reportCSV(match); // Opponent is not the actor in this point, so test the winner name too.
   match.players[0].name = '=1+1';
   assert.ok(reportCSV(match).includes("'=1+1")); assert.ok(csv.includes('Forehand'));

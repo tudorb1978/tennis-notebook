@@ -6,7 +6,7 @@ import { strokes } from '../domain/points.ts';
 import type { PlayerStats } from '../domain/points.ts';
 import { hasPointNotes } from '../domain/pointNotes.ts';
 import { pointNoteLabels, pointNoteSummary } from './pointNotes.ts';
-import { endingNames, resultLabel, strokeNames, timingLabels } from './report.ts';
+import { pointEndingLabel, pointScoreBefore, resultLabel, strokeNames, timingLabels } from './report.ts';
 import { performanceCountLabels } from './playerPerformance.ts';
 import type { PlayerPerformanceReport } from './playerPerformance.ts';
 import type { MatchRecord } from '../storage/model.ts';
@@ -14,7 +14,7 @@ import type { MatchRecord } from '../storage/model.ts';
 /** Generate on-device without a WebView, remote service, or system print renderer. */
 async function createReportPDF(title: string, fontBytes: Uint8Array, render: (writer: {
   paragraph: (value: string, size?: number, secondary?: boolean, gap?: number) => void;
-  heading: (value: string, size?: number) => void;
+  heading: (value: string, size?: number, spaceBefore?: number) => void;
   ensure: (space: number) => void;
   playerTable: (name: string, stats: PlayerStats) => void;
   notesSummary: (summary: ReturnType<typeof pointNoteSummary>) => void;
@@ -27,7 +27,7 @@ async function createReportPDF(title: string, fontBytes: Uint8Array, render: (wr
   let page: PDFPage, y = 0;
   const normalized = (value: string) => value.replace(/[\u2010-\u2015\u2212]/g, '-').replace(/\t/g, ' ').replace(/\r/g, '');
   const check = (text: string) => {
-    if ([...text].some(c => c !== '\n' && !supported.has(c.codePointAt(0)!))) throw new Error('This report contains a character the bundled font cannot display. Use CSV to preserve all text.');
+    if ([...text].some(c => c !== '\n' && !supported.has(c.codePointAt(0)!))) throw new Error('This report contains a character the bundled font cannot display. A records backup preserves the original text.');
   };
   function newPage() { page = doc.addPage([width, height]); y = height - 44; page.drawText('TENNIS NOTEBOOK', { x: left, y, size: 8, font, color: sub }); y -= 24; }
   function ensure(space: number) { if (y - space < 48) newPage(); }
@@ -54,7 +54,10 @@ async function createReportPDF(title: string, fontBytes: Uint8Array, render: (wr
     }
     y -= gap;
   }
-  function heading(value: string, size = 15) { ensure(45); paragraph(value, size, false, 7); }
+  function heading(value: string, size = 15, spaceBefore = 0) {
+    ensure(45 + spaceBefore); y -= spaceBefore;
+    paragraph(value, size, false, 7);
+  }
   function playerTable(name: string, player: PlayerStats) {
     ensure(275); heading(name);
     const widths = [180, (contentWidth - 180) / 3, (contentWidth - 180) / 3, (contentWidth - 180) / 3];
@@ -112,15 +115,24 @@ export function createMatchPDF(record: MatchRecord, fontBytes: Uint8Array): Prom
     for (const side of [0, 1] as const) playerTable(record.players[side].name, stats.players[side]);
     paragraph(`Aces count as serve winners; double faults are separate. Endings recorded: ${stats.coverage.endings}/${stats.coverage.points}. Stroke recorded: ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.`, 9, true);
     if (hasScoreCorrections) paragraph('The score includes manual corrections. Statistics use observed points only.', 9, true);
+    const matchNotes = record.matchNotes?.trim();
+    if (matchNotes) {
+      heading('Match notes');
+      paragraph(matchNotes, 10, false, 14);
+    }
     const names = [record.players[0].name, record.players[1].name] as const;
     notesSummary(pointNoteSummary(points, names));
     const notable = pointEntries.map((entry, index) => ({ ...entry, number: index + 1 })).filter(p => hasPointNotes(p.point.observations));
     if (notable.length) {
-      heading('Notes and notable points');
+      ensure(120);
+      heading('Notes and notable points', 15, 10);
+      paragraph(`Scores list ${names[0]} first and ${names[1]} second.`, 9, true);
       for (const entry of notable) {
         const p = entry.point, obs = p.observations!;
-        ensure(45);
-        paragraph(`${entry.number}. ${record.players[p.winner].name} won | ${endingNames[p.ending]}${p.stroke ? ' | ' + strokeNames[p.stroke] : ''}`, 10, false, 2);
+        ensure(65);
+        paragraph(`${entry.number}. ${pointScoreBefore(p)}`, 9, true, 2);
+        paragraph(`${names[p.winner]} won`, 11, false, 2);
+        paragraph(pointEndingLabel(p, names), 10, false, 3);
         const labels = pointNoteLabels(obs, names);
         if (labels.length) paragraph(labels.join(' | '), 9, true, 3);
         if (obs.notes) paragraph(obs.notes, 10);

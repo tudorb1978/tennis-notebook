@@ -7,6 +7,7 @@ import { emptyObservations, serveEndingIssue, serveWasIn, strokes } from '../dom
 import type { PointInput, Stroke } from '../domain/points.ts';
 import { pointLabels } from '../domain/scoring.ts';
 import type { MatchScore, ScoreCorrection, Side } from '../domain/scoring.ts';
+import { matchNotesMaxLength } from '../storage/model.ts';
 import type { MatchRecord, PlayerProfile, RecordingMode } from '../storage/model.ts';
 import { endingNames, strokeNames } from '../reports/report.ts';
 import { Button, Card, Choices, Divider, Eyebrow, Field, Heading, Notice, Row, Stack, T, useTheme } from './kit.tsx';
@@ -77,6 +78,16 @@ export function MatchDetailsForm({ record, busy, onSave, onDelete }: { record: M
     <Button quiet label="Delete match" disabled={busy} onPress={() => setConfirmDelete(true)}>
       <T small bold style={{ color: c.error, textAlign: 'center' }}>Delete match</T>
     </Button>
+  </Stack>;
+}
+
+export function MatchNotesEditor({ notes, busy, onSave }: { notes: string; busy: boolean; onSave: (notes: string) => void }) {
+  const [draft, setDraft] = useState(notes);
+  return <Stack>
+    <Heading>Match notes</Heading>
+    <Field label="Notes about the match" value={draft} onChange={setDraft} multiline maxLength={matchNotesMaxLength}
+      placeholder="Overall observations, patterns or things to work on…" />
+    <Button primary disabled={busy} onPress={() => onSave(draft.trim())}>Save match notes</Button>
   </Stack>;
 }
 

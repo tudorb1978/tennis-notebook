@@ -9,6 +9,7 @@ import { isMatchDate } from '../domain/matchDates.ts';
 export interface PlayerProfile { id: string; name: string; createdAt: string }
 export interface PlayerSnapshot { id: string | null; name: string }
 export type RecordingMode = 'score' | 'endings' | 'detailed';
+export const matchNotesMaxLength = 4000;
 export interface PendingEnding { actor: Side; ending: 'winner' | 'unforced-error' | 'forced-error' }
 export interface MatchDraft { observations: PointObservations; pending: PendingEnding | { winner: Side } | null; lets: number; actualServer?: Side | null }
 export interface MatchRecord {
@@ -27,6 +28,7 @@ export interface MatchRecord {
   surface: string;
   courtSetting?: '' | 'Indoor' | 'Outdoor';
   conditions: string;
+  matchNotes?: string;
   format: MatchFormat;
   firstServer: Side;
   mode: RecordingMode;
@@ -59,6 +61,7 @@ export function validateMatch(value: unknown): asserts value is MatchRecord {
   text(value.date, 10, true);
   if (!isMatchDate(value.date)) throw new Error('Invalid match date.');
   for (const key of ['group', 'round', 'venue', 'surface', 'conditions']) text(value[key], 200);
+  if (value.matchNotes !== undefined) text(value.matchNotes, matchNotesMaxLength);
   if (value.eventId !== undefined) text(value.eventId, 250, true);
   if (value.courtSetting !== undefined && value.courtSetting !== '' && value.courtSetting !== 'Indoor' && value.courtSetting !== 'Outdoor') {
     throw new Error('Invalid court setting.');

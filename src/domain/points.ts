@@ -1,5 +1,5 @@
 import { awardPoint, other } from './scoring.ts';
-import type { MatchScore, Side } from './scoring.ts';
+import type { CurrentStage, MatchScore, Side } from './scoring.ts';
 import { validatePointNoteOptions } from './pointNotes.ts';
 import type { CallSource, PlayerNote, RallyLength } from './pointNotes.ts';
 
@@ -44,7 +44,7 @@ export function serveEndingIssue(input: PointInput): string | null {
 }
 
 export interface RecordedPoint {
-  readonly context: { readonly stage: number; readonly games: readonly [number, number]; readonly points: readonly [number, number]; readonly phase: string };
+  readonly context: Pick<CurrentStage, 'games' | 'points' | 'phase'> & { readonly stage: number };
   readonly server: Side;
   readonly servedOutOfTurn: boolean;
   readonly winner: Side;

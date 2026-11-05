@@ -18,11 +18,11 @@ import { groupMatches, matchEventKey } from './src/storage/matchGroups.ts';
 import type { MatchGroup } from './src/storage/matchGroups.ts';
 import { emptyDraft } from './src/storage/model.ts';
 import type { MatchDraft, MatchRecord, PlayerProfile } from './src/storage/model.ts';
-import { endingNames, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
+import { endingNames, pointEndingLabel, pointScoreBefore, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
 import { pointNoteLabels, pointNoteSummary } from './src/reports/pointNotes.ts';
 import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
 import { AppTheme, Button, Card, Choices, Eyebrow, Heading, Notice, PlayerBadge, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
-import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, modeOptions, PointEditor, SetupForm } from './src/ui/forms.tsx';
+import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, MatchNotesEditor, modeOptions, PointEditor, SetupForm } from './src/ui/forms.tsx';
 import type { SetupValues } from './src/ui/forms.tsx';
 import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
 import { OutcomeGuide, OutcomeHelpButton } from './src/ui/OutcomeGuide.tsx';
@@ -34,7 +34,7 @@ import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
 type Screen = 'loading' | 'home' | 'setup' | 'match' | 'player-report';
 type Tab = 'record' | 'history' | 'report';
 type PointPanel = 'edit-point' | 'point-notes';
-type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
+type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
 function AwakeWhileRecording() { useKeepAwake('tennis-recording'); return null; }
 function Main() {
   const c = useTheme(); const layout = useLayout();
@@ -361,7 +361,7 @@ function Main() {
       {[...projection.pointEntries].reverse().map(({ id, point }, index) => <Card key={id} style={{ gap: 5 }}>
         <Eyebrow>Point {projection.points.length - index} · Stage {point.context.stage + 1}</Eyebrow>
         <T bold>{names[point.winner]} won</T>
-        <T small>{point.actor === null ? 'Ending not recorded' : `${names[point.actor]} · ${endingNames[point.ending]}`}{point.stroke ? ` · ${strokeNames[point.stroke]}` : ''}</T>
+        <T small>{pointEndingLabel(point, names)}</T>
         <T small muted>{names[point.server]} served{point.servedOutOfTurn ? ' · out of turn' : ''}</T>
         <T small muted>Games before {point.context.games.join('–')}</T>
         {pointNoteLabels(point.observations, names).map((label, i) => <T key={i} small muted>{label}</T>)}
@@ -384,6 +384,7 @@ function Main() {
     const names = [record.players[0].name, record.players[1].name] as const;
     const noteSummary = pointNoteSummary(projection.points, names);
     const notablePoints = projection.pointEntries.filter(entry => hasPointNotes(entry.point.observations));
+    const matchNotes = record.matchNotes?.trim();
     const { stats } = projection;
 
     return <Stack>
@@ -396,6 +397,13 @@ function Main() {
         <Button primary disabled={busy} onPress={() => void external(async () => { await sharePDF(record); })}>PDF report</Button>
         <Button disabled={busy} onPress={() => void external(async () => { await shareText(`tennis-match-${record.id}.csv`, reportCSV(record), 'text/csv'); })}>Export points CSV</Button>
       </Row>
+      <Card style={{ gap: 5 }}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <T bold>Match notes</T>
+          <Button quiet compact disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'match-notes' }); }}>{matchNotes ? 'Edit match notes' : 'Add match notes'}</Button>
+        </Row>
+        {matchNotes ? <T>{matchNotes}</T> : <T small muted>Add observations about the match as a whole.</T>}
+      </Card>
       <MatchComparison names={names} stats={stats.players} />
       {times.length > 0 && <Card style={{ gap: 6 }}>
         <T bold>Match timing</T>
@@ -420,15 +428,19 @@ function Main() {
       </Stack>}
       <View style={{ gap: 4 }}>
         <T bold style={{ fontSize: 19, lineHeight: 24 }}>Notes and notable points</T>
-        {notablePoints.length === 0 && <T small muted>Point notes will appear here as you add them.</T>}
+        <T small muted>{notablePoints.length ? 'Scores follow the player order on the scoreboard.' : 'Point notes will appear here as you add them.'}</T>
       </View>
-      {notablePoints.map(entry => {
-        const obs = entry.point.observations!;
-        return <Card key={entry.id} style={{ gap: 7 }}>
-          <T bold>{names[entry.point.winner]} won · {endingNames[entry.point.ending]}</T>
+      {notablePoints.map(({ id, point }) => {
+        const obs = point.observations!;
+        return <Card key={id} style={{ gap: 7 }}>
+          <View style={{ gap: 3 }}>
+            <T small muted>{pointScoreBefore(point)}</T>
+            <T bold>{names[point.winner]} won</T>
+            <T small>{pointEndingLabel(point, names)}</T>
+          </View>
           {pointNoteLabels(obs, names).map(label => <T key={label} small>{label}</T>)}
           {obs.notes ? <T small>{obs.notes}</T> : null}
-          {pointActions(entry.id, obs)}
+          {pointActions(id, obs)}
         </Card>;
       })}
     </Stack>;
@@ -528,6 +540,9 @@ function Main() {
           setMatches(rows => rows.filter(match => match.id !== record.id));
           setPanel(null); setCurrent(null); setScreen('home'); setNotice('Match deleted.');
         })}
+      />}
+      {panel?.kind === 'match-notes' && record && <MatchNotesEditor notes={record.matchNotes ?? ''} busy={busy}
+        onSave={matchNotes => void mutate(m => ({ ...m, matchNotes }), () => { setPanel(null); setNotice('Match notes saved.'); })}
       />}
       {panel?.kind === 'recording-mode' && record && <Stack>
         <Heading>Recording mode</Heading>

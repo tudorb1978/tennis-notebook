@@ -186,10 +186,11 @@ export function awardPoint(score: MatchScore, winner: Side): MatchScore {
 }
 
 export function pointLabels(score: MatchScore): readonly [string, string] {
-  const current = score.current;
-  if (!current) return ['—', '—'];
-  const [a, b] = current.points;
-  if (current.phase !== 'game') return [String(a), String(b)];
+  return score.current ? stagePointLabels(score.current) : ['—', '—'];
+}
+
+export function stagePointLabels({ phase, points: [a, b] }: Pick<CurrentStage, 'phase' | 'points'>): readonly [string, string] {
+  if (phase !== 'game') return [String(a), String(b)];
   if (a >= 3 && b >= 3) return a === b ? ['40', '40'] : a > b ? ['Ad', '40'] : ['40', 'Ad'];
   const names = ['0', '15', '30', '40'] as const;
   return [names[Math.min(a, 3)]!, names[Math.min(b, 3)]!];
