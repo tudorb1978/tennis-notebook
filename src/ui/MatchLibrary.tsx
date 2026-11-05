@@ -26,7 +26,7 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
   onNewMatch: () => void;
   onAddToEvent: () => void;
   onPerformance: (group: MatchGroup | null) => void;
-  onOpenMatch: (match: MatchRecord) => void;
+  onOpenMatch: (id: string) => void;
   onBackup: () => void;
   onRestore: () => void;
 }) {
@@ -69,19 +69,23 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
       {matches.map(match => {
         const { score, points } = replayMatch(match.format, match.firstServer, match.events);
         const active = score.status === 'in-progress' || score.status === 'suspended';
-        return <Card key={match.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+        const title = `${match.players[0].name} vs ${match.players[1].name}`;
+        const result = resultLabel(score);
+        const status = statusLabels[score.status];
+        return <Button key={match.id} label={`${title}, ${status}, ${result}`} disabled={busy} onPress={() => onOpenMatch(match.id)}
+          style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 17, paddingHorizontal: 15, paddingVertical: 15 }}>
           <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-            <T bold style={{ fontSize: 17, lineHeight: 22 }}>{match.players[0].name} vs {match.players[1].name}</T>
-            <Text style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 26, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>{resultLabel(score)}</Text>
+            <T bold style={{ fontSize: 17, lineHeight: 22 }}>{title}</T>
+            <Text style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 26, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>{result}</Text>
             <T small muted>{match.date} · {points.length} {points.length === 1 ? 'recorded point' : 'recorded points'}</T>
           </View>
-          <View style={{ gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ backgroundColor: active ? c.soft : c.bg, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 9 }}>
-              <T small bold style={{ color: active ? c.ink : c.sub, textAlign: 'center' }}>{statusLabels[score.status]}</T>
+              <T small bold style={{ color: active ? c.ink : c.sub }}>{status}</T>
             </View>
-            <Button quiet compact disabled={busy} onPress={() => onOpenMatch(match)}>{active ? 'Resume match' : 'Open report'}</Button>
+            <T bold muted>›</T>
           </View>
-        </Card>;
+        </Button>;
       })}
     </View>)}
     <Card style={{ gap: 8 }}>

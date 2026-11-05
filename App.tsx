@@ -34,7 +34,7 @@ import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
 type Screen = 'loading' | 'home' | 'setup' | 'match' | 'player-report';
 type Tab = 'record' | 'history' | 'report';
 type PointPanel = 'edit-point' | 'point-notes';
-type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
+type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
 function AwakeWhileRecording() { useKeepAwake('tennis-recording'); return null; }
 function Main() {
   const c = useTheme(); const layout = useLayout();
@@ -112,12 +112,23 @@ function Main() {
   };
   const saveDraft = (observations: PointObservations) => mutate(m => ({ ...m, draft: { ...m.draft, observations } }));
   const home = () => external(async () => { await repository.current!.setResumeId(null); setPanel(null); setCurrent(null); setScreen('home'); setNotice(''); });
-  const openMatch = (match: MatchRecord) => external(async () => {
-    const latest = await repository.current!.getMatch(match.id); if (!latest) throw new Error('This match could not be found.');
-    await repository.current!.setResumeId(latest.id); setCurrent(latest); setPanel(null);
-    const status = replayMatch(latest.format, latest.firstServer, latest.events).score.status;
-    setTab(status === 'in-progress' || status === 'suspended' ? 'record' : 'report'); setScreen('match'); setNotice('');
-  });
+  const openMatch = async (id: string, choice?: 'resume' | 'report') => {
+    let resume = false;
+    await external(async () => {
+      const latest = await repository.current!.getMatch(id);
+      if (!latest) throw new Error('This match could not be found.');
+      const status = replayMatch(latest.format, latest.firstServer, latest.events).score.status;
+      if (status === 'suspended' && choice === undefined) {
+        setPanel({ kind: 'open-paused-match', match: latest });
+        return;
+      }
+      await repository.current!.setResumeId(latest.id);
+      setCurrent(latest); setPanel(null); setScreen('match'); setNotice('');
+      setTab(choice !== 'report' && (status === 'in-progress' || status === 'suspended') ? 'record' : 'report');
+      resume = status === 'suspended' && choice === 'resume';
+    });
+    if (resume) await addLifecycle({ type: 'resume' });
+  };
   useEffect(() => {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
       if (saving.current) return true;
@@ -455,7 +466,7 @@ function Main() {
       onNewMatch={() => showSetup(null)}
       onAddToEvent={() => { setError(''); setPanel({ kind: 'pick-event-for-match' }); }}
       onPerformance={showPlayerReport}
-      onOpenMatch={match => void openMatch(match)}
+      onOpenMatch={id => void openMatch(id)}
       onBackup={() => void exportBackup()}
       onRestore={() => void restore()}
     />;
@@ -534,6 +545,12 @@ function Main() {
             else { setReportEventKey(event.key); setPanel(null); }
           }}
         >{`${event.name} · ${event.dateLabel}`}</Button>)}
+      </Stack>}
+      {panel?.kind === 'open-paused-match' && <Stack>
+        <Heading>Match paused</Heading>
+        <T>{panel.match.players[0].name} vs {panel.match.players[1].name}</T>
+        <Button primary disabled={busy} onPress={() => void openMatch(panel.match.id, 'resume')}>Resume match</Button>
+        <Button disabled={busy} onPress={() => void openMatch(panel.match.id, 'report')}>Open report</Button>
       </Stack>}
       {panel?.kind === 'match-details' && record && <MatchDetailsForm
         record={record} busy={busy}
