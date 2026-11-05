@@ -1,5 +1,5 @@
-import { awardPoint, other } from './scoring.ts';
-import type { CurrentStage, MatchScore, Side } from './scoring.ts';
+import { awardPoint, other, pointStakes } from './scoring.ts';
+import type { CurrentStage, MatchScore, PointStake, Side } from './scoring.ts';
 import { validatePointNoteOptions } from './pointNotes.ts';
 import type { CallSource, PlayerNote, RallyLength } from './pointNotes.ts';
 
@@ -47,6 +47,7 @@ export interface RecordedPoint {
   readonly context: Pick<CurrentStage, 'games' | 'points' | 'phase'> & { readonly stage: number };
   readonly server: Side;
   readonly servedOutOfTurn: boolean;
+  readonly stakes: ReturnType<typeof pointStakes>;
   readonly winner: Side;
   readonly actor: Side | null;
   readonly ending: Ending;
@@ -58,7 +59,7 @@ export function recordPoint(score: MatchScore, input: PointInput): { score: Matc
   if (score.status !== 'in-progress' || !score.current) throw new Error('The match is not in progress.');
   const server = input.actualServer === undefined ? score.current.server : input.actualServer;
   if (server !== 0 && server !== 1) throw new Error('Invalid server for this point.');
-  let point: Omit<RecordedPoint, 'context' | 'servedOutOfTurn'>;
+  let point: Omit<RecordedPoint, 'context' | 'servedOutOfTurn' | 'stakes'>;
   if (input.type === 'winner-only') {
     point = { server, winner: input.winner, actor: null, ending: 'unknown', stroke: null };
   } else {
@@ -92,11 +93,15 @@ export function recordPoint(score: MatchScore, input: PointInput): { score: Matc
     validatePointNoteOptions(obs.rallyLength, obs.questionableCallsBy, obs.playerNotes);
     point = { ...point, observations: obs };
   }
-  return { score: awardPoint(score, point.winner), point: { ...point, servedOutOfTurn: server !== score.current.server, context: { stage: score.current.index,
-    games: score.current.games, points: score.current.points, phase: score.current.phase } } };
+  return { score: awardPoint(score, point.winner), point: {
+    ...point, servedOutOfTurn: server !== score.current.server, stakes: pointStakes(score, server),
+    context: { stage: score.current.index, games: score.current.games, points: score.current.points, phase: score.current.phase },
+  } };
 }
 
 export interface StrokeCounts { winners: number; unforcedErrors: number; forcedErrors: number }
+interface PointOutcomes { won: number; lost: number }
+interface PressurePointCounts { chances: PointOutcomes; faced: PointOutcomes }
 export interface PlayerStats {
   pointsWon: number;
   aces: number;
@@ -108,6 +113,7 @@ export interface PlayerStats {
   returnsObserved: number;
   returnsIn: number;
   byStroke: Record<Stroke, StrokeCounts>;
+  pressurePoints: Record<PointStake, PressurePointCounts>;
 }
 
 export function summarisePoints(points: readonly RecordedPoint[]): {
@@ -115,14 +121,23 @@ export function summarisePoints(points: readonly RecordedPoint[]): {
   coverage: { points: number; endings: number; strokes: number };
 } {
   function empty(): PlayerStats {
+    const pressurePoint = (): PressurePointCounts => ({ chances: { won: 0, lost: 0 }, faced: { won: 0, lost: 0 } });
     return { pointsWon: 0, aces: 0, doubleFaults: 0, firstServesObserved: 0, firstServesIn: 0,
       secondServesObserved: 0, secondServesIn: 0, returnsObserved: 0, returnsIn: 0,
+      pressurePoints: { break: pressurePoint(), set: pressurePoint(), match: pressurePoint() },
       byStroke: Object.fromEntries(strokes.map(stroke => [stroke, { winners: 0, unforcedErrors: 0, forcedErrors: 0 }])) as Record<Stroke, StrokeCounts> };
   }
   const players: [PlayerStats, PlayerStats] = [empty(), empty()];
   const coverage = { points: points.length, endings: 0, strokes: 0 };
   for (const point of points) {
     players[point.winner].pointsWon++;
+    for (const side of [0, 1] as const) {
+      const converted = point.winner === side;
+      for (const stake of point.stakes[side]) {
+        players[side].pressurePoints[stake].chances[converted ? 'won' : 'lost']++;
+        players[other(side)].pressurePoints[stake].faced[converted ? 'lost' : 'won']++;
+      }
+    }
     const serve = players[point.server];
     const receiver = players[other(point.server)];
     const obs = point.observations;

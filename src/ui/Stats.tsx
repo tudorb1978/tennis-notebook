@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { DimensionValue } from 'react-native';
 import { strokes } from '../domain/points.ts';
 import type { PlayerStats } from '../domain/points.ts';
-import { strokeNames } from '../reports/report.ts';
+import { pressurePointExplanation, pressurePointRows, strokeNames } from '../reports/report.ts';
 import { Card, T, useTheme } from './kit.tsx';
 
 const strokeColumns = ['Winners', 'Unforced errors', 'Forced errors'] as const;
@@ -90,6 +90,26 @@ export function MatchComparison({ names, stats }: {
       <T small muted style={comparisonLabel}>{label}</T>
       <T bold style={comparisonSide}>{values[1]}</T>
     </View>)}
+  </Card>;
+}
+
+export function PressurePoints({ names, stats }: { names: readonly string[]; stats: readonly PlayerStats[] }) {
+  const c = useTheme();
+  const rows = pressurePointRows(stats);
+  const labelStyle = { flex: 1.25, minWidth: 0 };
+  return <Card style={{ gap: 8 }}>
+    <T bold>Pressure points</T>
+    {rows.length ? <>
+      <T small muted>{pressurePointExplanation}</T>
+      <View style={comparisonRow}>
+        <T small bold style={labelStyle}>Opportunity</T>
+        {names.map((name, i) => <T key={i} small bold style={comparisonSide}>{name}</T>)}
+      </View>
+      {rows.map(row => <View key={row.label} style={{ ...comparisonRow, borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line, paddingTop: 7 }}>
+        <T small style={labelStyle}>{row.label}</T>
+        {row.values.map((value, i) => <T key={i} small style={comparisonSide}>{value}</T>)}
+      </View>)}
+    </> : <T small muted>No pressure points recorded.</T>}
   </Card>;
 }
 

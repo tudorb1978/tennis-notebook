@@ -87,7 +87,7 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
     {stakes?.some(labels => labels.length > 0) && <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
       {([0, 1] as const).map(side => stakes[side].length > 0 && <View key={side} style={{ maxWidth: '100%', backgroundColor: c.lime, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2 }}>
         <Text testID={`point-stakes-${side}`} style={{ color: c.limeInk, fontSize: 12, lineHeight: 18, fontWeight: '700' }}>
-          {[record.players[side].name, ...stakes[side].map(stake => stakeLabels[stake])].join(' · ')}
+          {[record.players[side].name, ...stakes[side].filter(stake => stake !== 'set' || !stakes[side].includes('match')).map(stake => stakeLabels[stake])].join(' · ')}
         </Text>
       </View>)}
     </View>}

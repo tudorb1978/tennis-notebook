@@ -1,7 +1,7 @@
 import { replayMatch } from '../domain/history.ts';
 import type { MatchTiming } from '../domain/history.ts';
 import { strokes } from '../domain/points.ts';
-import type { RecordedPoint } from '../domain/points.ts';
+import type { PlayerStats, RecordedPoint } from '../domain/points.ts';
 import { hasPointNotes, playerNoteLabels, questionableCallSources, rallyLengthLabels, rallyLengthOf } from '../domain/pointNotes.ts';
 import { callSourceLabel, pointNoteLabels, pointNoteSummary } from './pointNotes.ts';
 import { stagePointLabels } from '../domain/scoring.ts';
@@ -10,6 +10,24 @@ import type { MatchRecord } from '../storage/model.ts';
 
 export const strokeNames = { forehand: 'Forehand', backhand: 'Backhand', volley: 'Volley', overhead: 'Overhead', serve: 'Serve', other: 'Other', unknown: 'Not seen' };
 export const endingNames = { winner: 'Winner', 'unforced-error': 'Unforced error', 'forced-error': 'Forced error', ace: 'Ace', 'double-fault': 'Double fault', unknown: 'Outcome only' };
+export const pressurePointExplanation = 'Counts use recorded points. A chance to win both the set and the match counts in both categories.';
+export function pressurePointGroups(players: readonly PlayerStats[]) {
+  if (!players.some(player => Object.values(player.pressurePoints).some(({ chances, faced }) => chances.won || chances.lost || faced.won || faced.lost))) return [];
+  return ([['break', 'Break points'], ['set', 'Set points'], ['match', 'Match points']] as const).map(([stake, label]) => ({
+    label,
+    values: players.map(({ pressurePoints }) => {
+      const { won, lost } = pressurePoints[stake].chances;
+      const faced = pressurePoints[stake].faced;
+      return { chances: `${won} won · ${lost} lost`, faced: `${faced.won} saved · ${faced.lost} lost` };
+    }),
+  }));
+}
+export function pressurePointRows(players: readonly PlayerStats[]) {
+  return pressurePointGroups(players).flatMap(({ label, values }) => [
+    { label: `${label} · Own chances`, values: values.map(value => value.chances) },
+    { label: `${label} · Faced`, values: values.map(value => value.faced) },
+  ]);
+}
 export function pointScoreBefore({ context }: RecordedPoint): string {
   const points = stagePointLabels(context).join('–');
   if (context.phase === 'match-tie-break') return `Before point · Match tie-break ${points}`;
@@ -48,6 +66,10 @@ export function reportHTML(record: MatchRecord): string {
   const times = timingLabels(timing);
   const e = escapeHTML;
   const names = [record.players[0].name, record.players[1].name] as const;
+  const pressureRows = pressurePointRows(stats.players);
+  const pressure = pressureRows.length ? `<h2>Pressure points</h2><p>${e(pressurePointExplanation)}</p><table><thead><tr><th>Opportunity</th>${names.map(name => `<th>${e(name)}</th>`).join('')}</tr></thead><tbody>${pressureRows.map(row =>
+    `<tr><th scope="row">${e(row.label)}</th>${row.values.map(value => `<td>${e(value)}</td>`).join('')}</tr>`,
+  ).join('')}</tbody></table>` : '';
   const summary = pointNoteSummary(points, names).map(section =>
     `<h3>${e(section.title)}</h3><ul>${section.lines.map(line => `<li>${e(line)}</li>`).join('')}</ul>`,
   ).join('');
@@ -64,7 +86,7 @@ export function reportHTML(record: MatchRecord): string {
   }).join('');
   const matchNotes = record.matchNotes?.trim();
   const status = score.winner !== null ? `${record.players[score.winner].name} won${score.status === 'retired' ? ' by retirement' : ''}` : score.status === 'abandoned' ? 'Abandoned without a winner' : score.status === 'suspended' ? 'Suspended' : 'In progress';
-  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:18mm}body{font:12px system-ui,sans-serif;color:#172d24}h1{font-size:24px;margin-bottom:6px}h2{font-size:17px;margin:22px 0 8px}p{line-height:1.5;color:#43594e}table{border-collapse:collapse;width:100%;break-inside:avoid}th,td{padding:8px;border-bottom:1px solid #cbd8cf;text-align:center}th:first-child{text-align:left}li{margin-bottom:10px;line-height:1.5}.score{font-size:22px;font-weight:600}.match-notes{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><h1>${e(record.players[0].name)} vs ${e(record.players[1].name)}</h1><p>${[record.date, record.group, record.round, record.venue, record.surface, record.courtSetting, record.conditions].filter(Boolean).map(e).join(' · ')}</p><div class="score">${e(resultLabel(score))}</div><p>${e(status)} · ${e(record.format.name)}</p>${times.length ? `<p>${times.map(e).join(' · ')}</p>` : ''}<h2>Winners and errors by stroke</h2>${tables}<p>Aces count as serve winners; double faults are shown separately. Endings recorded: ${stats.coverage.endings}/${stats.coverage.points}; stroke recorded: ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.${hasScoreCorrections ? ' The score contains manual corrections; point statistics cover recorded points only.' : ''}</p>${matchNotes ? `<h2>Match notes</h2><p class="match-notes">${e(matchNotes)}</p>` : ''}${summary ? '<h2>Point notes summary</h2>' + summary : ''}${notes ? '<h2>Notes and notable points</h2><p>Scores follow the player order above.</p><ul>' + notes + '</ul>' : ''}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:18mm}body{font:12px system-ui,sans-serif;color:#172d24}h1{font-size:24px;margin-bottom:6px}h2{font-size:17px;margin:22px 0 8px}p{line-height:1.5;color:#43594e}table{border-collapse:collapse;width:100%;break-inside:avoid}th,td{padding:8px;border-bottom:1px solid #cbd8cf;text-align:center}th:first-child{text-align:left}li{margin-bottom:10px;line-height:1.5}.score{font-size:22px;font-weight:600}.match-notes{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><h1>${e(record.players[0].name)} vs ${e(record.players[1].name)}</h1><p>${[record.date, record.group, record.round, record.venue, record.surface, record.courtSetting, record.conditions].filter(Boolean).map(e).join(' · ')}</p><div class="score">${e(resultLabel(score))}</div><p>${e(status)} · ${e(record.format.name)}</p>${times.length ? `<p>${times.map(e).join(' · ')}</p>` : ''}<h2>Winners and errors by stroke</h2>${tables}<p>Aces count as serve winners; double faults are shown separately. Endings recorded: ${stats.coverage.endings}/${stats.coverage.points}; stroke recorded: ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.${hasScoreCorrections ? ' The score contains manual corrections; point statistics cover recorded points only.' : ''}</p>${pressure}${matchNotes ? `<h2>Match notes</h2><p class="match-notes">${e(matchNotes)}</p>` : ''}${summary ? '<h2>Point notes summary</h2>' + summary : ''}${notes ? '<h2>Notes and notable points</h2><p>Scores follow the player order above.</p><ul>' + notes + '</ul>' : ''}</body></html>`;
 }
 function csvCell(value: unknown): string {
   let text = String(value ?? '');

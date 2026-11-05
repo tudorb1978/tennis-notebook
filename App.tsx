@@ -27,7 +27,7 @@ import type { SetupValues } from './src/ui/forms.tsx';
 import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
 import { OutcomeGuide, OutcomeHelpButton } from './src/ui/OutcomeGuide.tsx';
 import { Scoreboard } from './src/ui/Scoreboard.tsx';
-import { MatchComparison, StatsTable } from './src/ui/Stats.tsx';
+import { MatchComparison, PressurePoints, StatsTable } from './src/ui/Stats.tsx';
 import { PlayerPerformance } from './src/ui/PlayerPerformance.tsx';
 import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
 
@@ -406,6 +406,7 @@ function Main() {
         {matchNotes ? <T>{matchNotes}</T> : <T small muted>Add observations about the match as a whole.</T>}
       </Card>
       <MatchComparison names={names} stats={stats.players} />
+      <PressurePoints names={names} stats={stats.players} />
       {times.length > 0 && <Card style={{ gap: 6 }}>
         <T bold>Match timing</T>
         {times.map(time => <T key={time} small muted>{time}</T>)}

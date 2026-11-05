@@ -6,19 +6,21 @@ import { strokes } from '../domain/points.ts';
 import type { PlayerStats } from '../domain/points.ts';
 import { hasPointNotes } from '../domain/pointNotes.ts';
 import { pointNoteLabels, pointNoteSummary } from './pointNotes.ts';
-import { pointEndingLabel, pointScoreBefore, resultLabel, strokeNames, timingLabels } from './report.ts';
+import { pointEndingLabel, pointScoreBefore, pressurePointExplanation, pressurePointGroups, resultLabel, strokeNames, timingLabels } from './report.ts';
 import { performanceCountLabels } from './playerPerformance.ts';
 import type { PlayerPerformanceReport } from './playerPerformance.ts';
 import type { MatchRecord } from '../storage/model.ts';
 
 export interface ReportFonts { regular: Uint8Array; bold: Uint8Array }
-type TextRole = 'title' | 'lead' | 'heading' | 'subheading' | 'body' | 'caption';
+type TextRole = 'title' | 'lead' | 'heading' | 'subheading' | 'body' | 'caption' | 'tableHeader' | 'tableBody' | 'tableTotal';
 type TextBlock = readonly [text: string, role: TextRole, gapAfter?: number];
+type RowTone = 'header' | 'plain' | 'stripe' | 'total';
 
 interface ReportWriter {
   group: (blocks: readonly TextBlock[]) => void;
   summary: (lead: string, details: readonly string[]) => void;
   playerTable: (name: string, stats: PlayerStats) => void;
+  pressurePoints: (names: readonly string[], stats: readonly PlayerStats[]) => void;
   matchNotes: (notes: string) => void;
   notesSummary: (summary: ReturnType<typeof pointNoteSummary>) => void;
   pointNote: (details: readonly TextBlock[], notes: string, intro?: readonly TextBlock[]) => void;
@@ -47,6 +49,9 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
     subheading: { font: bold, color: ink, size: 10.5, leading: 15 },
     body: { font: regular, color: ink, size: 10, leading: 15 },
     caption: { font: regular, color: muted, size: 9, leading: 13 },
+    tableHeader: { font: bold, color: white, size: 9, leading: 13 },
+    tableBody: { font: regular, color: ink, size: 9, leading: 13 },
+    tableTotal: { font: bold, color: ink, size: 9, leading: 13 },
   };
   const width = 595.28, height = 841.89, left = 44, contentWidth = width - left * 2;
   const top = height - 72, bottom = 52;
@@ -125,43 +130,68 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
     blocks.forEach(block => draw(block, left + inset));
     y -= 27;
   }
+  function tableRow(cells: readonly (number | string)[], widths: readonly number[], tone: RowTone) {
+    const role = tone === 'header' ? 'tableHeader' : tone === 'total' ? 'tableTotal' : 'tableBody';
+    const blocks = cells.map((cell, i) => layout([String(cell), role], widths[i]! - 20));
+    const height = Math.max(...blocks.map(block => block.height)) + 5;
+    return { blocks, widths, tone, height };
+  }
+  function drawTableRow({ blocks, widths, tone, height }: ReturnType<typeof tableRow>) {
+    const fill = { header: court, plain: white, stripe, total: soft }[tone];
+    page.drawRectangle({ x: left, y: y - height, width: contentWidth, height, color: fill });
+    let x = left;
+    for (const [index, block] of blocks.entries()) {
+      const { lines, font, size, color, leading } = block;
+      const cellWidth = widths[index]!;
+      let baseline = y - (height - block.height) / 2 - size;
+      for (const text of lines) {
+        if (text) page.drawText(text, { x: index === 0 ? x + 10 : x + (cellWidth - font.widthOfTextAtSize(text, size)) / 2, y: baseline, font, size, color });
+        baseline -= leading;
+      }
+      x += cellWidth;
+    }
+    y -= height;
+    rule(page, y);
+  }
   function playerTable(name: string, player: PlayerStats) {
     const title = layout([name, 'heading', 7]);
     const totals = layout([`Points won ${player.pointsWon}  ·  Aces ${player.aces}  ·  Double faults ${player.doubleFaults}`, 'subheading', 2]);
     const serving = layout([`First serves in ${player.firstServesIn}/${player.firstServesObserved}  ·  Second serves in ${player.secondServesIn}/${player.secondServesObserved}  ·  Returns in ${player.returnsIn}/${player.returnsObserved} (observed)`, 'caption', 16]);
-    const rowHeight = 18;
-    ensure(title.height + (strokes.length + 2) * rowHeight + 8 + totals.height + serving.height - serving.gap);
-    draw(title);
     const numericWidth = (contentWidth - 173) / 3;
     const widths = [173, numericWidth, numericWidth, numericWidth];
-    function row(cells: readonly (number | string)[], tone: 'header' | 'plain' | 'stripe' | 'total') {
-      const fill = { header: court, plain: white, stripe, total: soft }[tone];
-      const color = tone === 'header' ? white : ink;
-      const font = tone === 'header' || tone === 'total' ? bold : regular;
-      page.drawRectangle({ x: left, y: y - rowHeight, width: contentWidth, height: rowHeight, color: fill });
-      let x = left;
-      for (const [index, cell] of cells.entries()) {
-        const text = String(cell);
-        const size = 9;
-        const cellWidth = widths[index]!;
-        page.drawText(text, { x: index === 0 ? x + 10 : x + (cellWidth - font.widthOfTextAtSize(text, size)) / 2, y: y - 12, font, size, color });
-        x += cellWidth;
-      }
-      y -= rowHeight;
-      rule(page, y);
-    }
-    row(['Stroke', 'Winners', 'Unforced errors', 'Forced errors'], 'header');
+    const rows = [tableRow(['Stroke', 'Winners', 'Unforced errors', 'Forced errors'], widths, 'header')];
     const totalsByType = [0, 0, 0];
     for (const [index, stroke] of strokes.entries()) {
       const stats = player.byStroke[stroke];
       const values = [stats.winners, stats.unforcedErrors, stats.forcedErrors];
       values.forEach((n, i) => { totalsByType[i] = totalsByType[i]! + n; });
-      row([strokeNames[stroke], ...values], index % 2 === 0 ? 'plain' : 'stripe');
+      rows.push(tableRow([strokeNames[stroke], ...values], widths, index % 2 === 0 ? 'plain' : 'stripe'));
     }
-    row(['Total', ...totalsByType], 'total');
+    rows.push(tableRow(['Total', ...totalsByType], widths, 'total'));
+    ensure(rows.reduce((space, row) => space + row.height, title.height + 8 + totals.height + serving.height - serving.gap));
+    draw(title);
+    rows.forEach(drawTableRow);
     y -= 8;
     draw(totals);
     draw(serving);
+  }
+  function pressurePoints(names: readonly string[], stats: readonly PlayerStats[]) {
+    const data = pressurePointGroups(stats);
+    if (!data.length) return;
+    const title = layout(['Pressure points', 'heading', 4]);
+    const note = layout([pressurePointExplanation, 'caption', 8]);
+    const widths = [126, ...names.map(() => (contentWidth - 126) / names.length)];
+    const rows = [
+      tableRow(['Opportunity', ...names], widths, 'header'),
+      ...data.map(({ label, values }, i) => tableRow([
+        label, ...values.map(({ chances, faced }) => `Own chances ${chances}\nFaced ${faced}`),
+      ], widths, i % 2 === 0 ? 'plain' : 'stripe')),
+    ];
+    ensure(rows.reduce((space, row) => space + row.height, title.height + note.height));
+    draw(title);
+    draw(note);
+    rows.forEach(drawTableRow);
+    y -= 16;
   }
   function notesSummary(summary: ReturnType<typeof pointNoteSummary>) {
     for (const [index, section] of summary.entries()) {
@@ -197,7 +227,7 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
   doc.setCreator('Tennis Notebook');
   doc.setProducer('Tennis Notebook');
   newPage();
-  render({ group, summary, playerTable, matchNotes, notesSummary, pointNote });
+  render({ group, summary, playerTable, pressurePoints, matchNotes, notesSummary, pointNote });
   for (const [index, item] of doc.getPages().entries()) {
     const number = `Page ${index + 1} of ${doc.getPageCount()}`;
     rule(item, 39);
@@ -208,7 +238,7 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
 
 export function createMatchPDF(record: MatchRecord, fonts: ReportFonts): Promise<Uint8Array> {
   const title = `${record.players[0].name} vs ${record.players[1].name}`;
-  return createReportPDF(title, 'MATCH REPORT', fonts, ({ group, summary, playerTable, matchNotes, notesSummary, pointNote }) => {
+  return createReportPDF(title, 'MATCH REPORT', fonts, ({ group, summary, playerTable, pressurePoints, matchNotes, notesSummary, pointNote }) => {
     const { score, stats, points, pointEntries, hasScoreCorrections, timing } = replayMatch(record.format, record.firstServer, record.events, record.timingStartedAt);
     const metadata = [record.date, record.group, record.round, record.venue, record.surface, record.courtSetting, record.conditions].filter(Boolean).join(' · ');
     group([[title, 'title', 5], [metadata, 'body', 14]]);
@@ -219,9 +249,10 @@ export function createMatchPDF(record: MatchRecord, fonts: ReportFonts): Promise
     const coverage: TextBlock[] = [[`Aces count as serve winners. Double faults are separate. Endings recorded ${stats.coverage.endings}/${stats.coverage.points} · Strokes recorded ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.`, 'caption', 8]];
     if (hasScoreCorrections) coverage.push(['The score includes manual corrections. Statistics use observed points only.', 'caption', 8]);
     group(coverage);
+    const names = [record.players[0].name, record.players[1].name] as const;
+    pressurePoints(names, stats.players);
     const notes = record.matchNotes?.trim();
     if (notes) matchNotes(notes);
-    const names = [record.players[0].name, record.players[1].name] as const;
     notesSummary(pointNoteSummary(points, names));
     const notable = pointEntries.map(({ point }, index) => ({ point, number: index + 1 })).filter(p => hasPointNotes(p.point.observations));
     for (const [index, { point, number }] of notable.entries()) {
@@ -242,12 +273,13 @@ export function createMatchPDF(record: MatchRecord, fonts: ReportFonts): Promise
 }
 
 export function createPlayerPerformancePDF(report: PlayerPerformanceReport, fonts: ReportFonts): Promise<Uint8Array> {
-  return createReportPDF(`Player performance · ${report.name}`, 'PLAYER PERFORMANCE', fonts, ({ group, summary, playerTable, notesSummary }) => {
+  return createReportPDF(`Player performance · ${report.name}`, 'PLAYER PERFORMANCE', fonts, ({ group, summary, playerTable, pressurePoints, notesSummary }) => {
     group([[report.name, 'title', 5], [report.scope, 'body', 14]]);
     const [volume, result] = performanceCountLabels(report);
     summary(volume, [result]);
     playerTable('Stroke breakdown', report.stats);
     if (report.hasScoreCorrections) group([['Some matches contain score corrections. Statistics use recorded observations only.', 'caption', 10]]);
+    pressurePoints([report.name], [report.stats]);
     notesSummary(report.noteSummary);
   });
 }

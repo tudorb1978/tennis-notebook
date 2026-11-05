@@ -47,8 +47,8 @@ test('FAST4 deuce is a deciding point; its receiver wins without advantage', () 
 
 test('FAST4 deciding points can give each player a different opportunity', () => {
   const score = correctCurrentStage(createScore(presets['fast4-single'], 0), { games: [3, 2], points: [3, 3], nextServer: 0 });
-  assert.deepEqual(pointStakes(score), [['match'], ['break']]);
-  assert.deepEqual(pointStakes(score, 1), [['match', 'break'], []]);
+  assert.deepEqual(pointStakes(score), [['match', 'set'], ['break']]);
+  assert.deepEqual(pointStakes(score, 1), [['match', 'set', 'break'], []]);
   assert.deepEqual(pointStakes(changeLifecycle(score, { type: 'suspend' })), [[], []]);
   assert.deepEqual(pointStakes(awardPoint(score, 0)), [[], []]);
 });

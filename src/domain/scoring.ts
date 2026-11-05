@@ -197,7 +197,7 @@ export function pointStakes(score: MatchScore, actualServer?: Side): readonly [r
     const stageWon = next.completedStages.length > score.completedStages.length;
     const stakes: PointStake[] = [];
     if (next.status === 'completed') stakes.push('match');
-    else if (stageWon) stakes.push('set');
+    if (stageWon && current.phase !== 'match-tie-break') stakes.push('set');
     if (current.phase === 'game' && side === receiver && (stageWon || (next.current?.games[side] ?? 0) > current.games[side])) {
       stakes.push('break');
     }

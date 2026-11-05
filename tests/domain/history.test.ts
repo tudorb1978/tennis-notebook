@@ -14,6 +14,26 @@ const examples: readonly MatchEvent[] = [
   { id: 'c', type: 'point', input: { type: 'ending', actor: 1, ending: 'forced-error', stroke: 'volley' } },
 ];
 
+test('Pressure point totals replay old points, honour the actual server, and update after undo', () => {
+  const events: readonly MatchEvent[] = [
+    { id: 'correct-game', type: 'correction', reason: 'Catch up to the live score', correction: { games: [3, 2], points: [3, 3], nextServer: 0 } },
+    { id: 'saved', type: 'point', input: { type: 'winner-only', winner: 1, actualServer: 1 } },
+    { id: 'correct-tiebreak', type: 'correction', reason: 'Catch up to the tie-break', correction: { games: [3, 3], points: [6, 5], nextServer: 0 } },
+    { id: 'converted', type: 'point', input: { type: 'winner-only', winner: 0 } },
+  ];
+  const { stats, score } = replayMatch(format, 0, events);
+  assert.equal(score.status, 'completed');
+  const [{ pressurePoints: alex }, { pressurePoints: jamie }] = stats.players;
+  assert.deepEqual(alex.break.chances, { won: 0, lost: 1 });
+  assert.deepEqual(jamie.break.faced, { won: 1, lost: 0 });
+  for (const stake of ['set', 'match'] as const) {
+    assert.deepEqual(alex[stake].chances, { won: 1, lost: 1 });
+    assert.deepEqual(jamie[stake].faced, { won: 1, lost: 1 });
+  }
+  const undone = replayMatch(format, 0, undoLast(format, 0, events, 'undo-conversion'));
+  assert.deepEqual(undone.stats.players[0].pressurePoints.match.chances, { won: 0, lost: 1 });
+});
+
 test('Winner and error strokes are required and determine the correct point winner', () => {
   const projection = replayMatch(format, 0, examples);
   assert.deepEqual(projection.score.current!.points, [2, 1]);

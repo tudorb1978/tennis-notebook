@@ -7,7 +7,7 @@ import { matchEventKey } from '../storage/matchGroups.ts';
 import type { MatchGroup } from '../storage/matchGroups.ts';
 import type { MatchRecord, PlayerProfile } from '../storage/model.ts';
 import { Button, Card, Choices, Field, Heading, Notice, Stack, T, useTheme } from './kit.tsx';
-import { StatsTable } from './Stats.tsx';
+import { PressurePoints, StatsTable } from './Stats.tsx';
 
 const periods = [
   { value: 'all', label: 'All dates' }, { value: '1', label: 'Last month' },
@@ -74,6 +74,7 @@ export function PlayerPerformance({ players, matches, playerId, event, hasEvents
           {performanceCountLabels(report).map((label, index) => <T key={label} small={index !== 0} bold={index === 0}>{label}</T>)}
         </Card>
         <Button disabled={busy} onPress={() => onExport(report)}>Export player PDF</Button>
+        <PressurePoints names={[report.name]} stats={[report.stats]} />
         <StatsTable name={report.name} stats={report.stats} />
         {report.hasScoreCorrections && <Notice>Some matches contain score corrections. Statistics use recorded observations only.</Notice>}
         {report.noteSummary.map(section => <Card key={section.title} style={{ gap: 7 }}>
