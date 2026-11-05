@@ -1,0 +1,37 @@
+# Tennis Notebook
+
+A courtside tennis recording app for parents and coaches, starting with Android phones. Match recording must work without an internet connection and support both quick point outcomes and more detailed serve and return observations.
+
+The app should eventually be usable by other families. Player and match records are private by default; making the app public does not publish its users' data.
+
+## Technology decisions
+
+- React Native and Expo for the mobile app.
+- TypeScript for the app and independent tennis scoring and statistics logic.
+- SQLite through expo-sqlite for local storage.
+- Restorable backups and portable exports in the first usable release.
+- Accounts, cloud synchronization, and coach access as later additions to the same architecture.
+
+The first device is an Android phone. iOS remains a future target. Package versions and additional libraries will be selected when implementation starts.
+
+## Design documents
+
+- [Courtside workflow](docs/courtside-workflow.md) describes setup, recording, corrections, and reports.
+- [Technical design](docs/technical-design.md) describes scoring, persistence, and a path to public use.
+- [Initial match formats](docs/match-formats.md) records the three priority presets and their explicit scoring rules.
+- [Android trial](docs/android-trial.md) explains installation and what to try during a practice match.
+- [Development](docs/development.md) covers builds, tests, storage, and remaining public-release work.
+
+## Current stage
+
+The Android application implements Quick endings with stroke selection, three confirmed match presets, player profiles, offline match history and recovery, serve and return observations, stroke statistics, point details and edits, undo, active-stage score corrections, suspension, retirement, and abandonment. It includes JSON backup/restore and PDF/CSV report exports.
+
+SQLite saves each recording action before the app advances the score. Pending stroke selections and serve observations are also persisted. The existing JavaScript and Flutter projects remain reference material.
+
+## Running the domain checks
+
+Use Node.js 24.12 or later. Install dependencies with `npm ci`, then run `npm run check` for type checking and domain/storage tests. `npm test` runs the tests alone. The actual application check is `tests/app/smoke.cjs`; the earlier interface checks remain separately in `tests/prototype`.
+
+The source in `src/domain` has no dependency on Expo, React Native, SQLite, or cloud services. It can be connected to the Android interface without changing the tennis rules.
+
+The next milestone is a practice-match trial on the user's Android phone. Additional formats will use the same scoring model and receive their own scoring tests before release.

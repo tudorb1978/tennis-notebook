@@ -1,0 +1,41 @@
+# Android practice match trial
+
+The first Android build is for a practice-match trial of the courtside recording workflow. It works without an account and stores records on the device.
+
+## Install and start
+
+Copy `output/android/tennis-tracker-preview.apk` to your Android phone and open it. Android may ask you to allow installation from the app you used to open the file. Once installed, open Tennis Notebook.
+
+Tap New match & event, enter your player's name and the opponent, select a format, and choose the first server. To reuse the venue and court details from a previous match, tap Add match to event and pick the event. The three match formats and their scoring rules are confirmed in [Initial match formats](match-formats.md).
+
+Use Match details in the match header to fill in or update the event, date, round, venue, surface, indoor or outdoor setting, and conditions during or after the match.
+
+In Point endings mode, tap the winner or error under the player who played the final shot, then select the stroke. The point is saved after stroke selection. Shot not seen is a deliberate exception when you missed the stroke. Aces and double faults use Serve automatically.
+
+## What to try
+
+1. Record several forehand and backhand winners and errors. Check both players' breakdowns in Report.
+2. Close and reopen the app during a game. Try the same while the stroke picker is open.
+3. Under Previous point or in History, use Edit point to correct a stroke and Add notes for observations, questionable calls, and disputes. Undo reverses the latest saved change.
+4. Switch to Serves + endings. Record a first-serve fault, second serve in, and return observation before finishing the point.
+5. Try Correct score next to Switch server on the scoreboard. Supply the next server. Missing points affect the official score without inventing stroke statistics.
+6. Use Pause and Resume recording for a break in play. The clock starts at Start recording, and the finished match report shows playing time with pauses deducted. Use Finish early for retirement or abandonment.
+7. Return to Matches. Open Event performance beside an event or Player performance from the match list. Choose a player and date range, then export the filtered report as a PDF.
+
+The most useful feedback is whether you can record a full match while keeping your attention on play, and where input slows you down. Check sunlight readability, accidental taps, access to Undo, and whether the right stroke choices are available.
+
+## Keep a backup
+
+Use Back up all records on the home screen to make a JSON backup, then save or share it to a location outside the app. This contains restorable profiles, match history, observations, and unfinished entry drafts. It is different from a PDF report or CSV export.
+
+Restore backup previews new records, identical matches, and conflicts. It imports new records and preserves existing conflicting records. Copy a backup before uninstalling the app or moving phones.
+
+PDF report and Export points CSV are available from a match's Report tab. Sharing opens the device's chooser; the app does not publish reports or send them automatically.
+
+## Current scope
+
+The first build supports singles and the three confirmed match formats, profiles for tracked players, opponents stored with each match, tournament/date grouping, surface and conditions, three recording depths, stroke statistics, serve/return observations, notes and call tags, history, edits, undo, active-stage score corrections, suspension, retirement, abandonment, backups, and report exports.
+
+It does not yet include accounts, cloud synchronization, coach access, timed formats, doubles service order, editing completed set scores, automatic change-of-ends reminders, or a custom format editor. Those remain separate work from testing the core recording experience.
+
+The APK uses local preview signing. A public store release will need production signing, release packaging, privacy/support information, and broader device testing.

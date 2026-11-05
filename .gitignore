@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+dist/
+coverage/
+*.tsbuildinfo
+android/
+ios/
+*.apk
+*.aab
+*.keystore
+/output/
