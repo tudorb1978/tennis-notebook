@@ -26,7 +26,7 @@ Keep the score, current server, and player names visible. Distinguish the offici
 
 In score-only mode, one tap on a player's point button records the point. In point-ending mode, choose who won the point first. Then choose a winner by that player or a forced or unforced error by the other player, and select the stroke to record the point. A backhand unforced error and a forehand unforced error must remain distinct in storage and reports.
 
-Stroke selection is part of normal entry for every winner, forced error, and unforced error. Initial choices are forehand, backhand, volley, overhead, serve, and other. Aces and double faults have a known serve stroke without an extra question. Keep a deliberate shot-not-seen option for incomplete observations. Selecting Other identifies a stroke outside the listed categories. If the observer missed the ending entirely, Save winner only records the selected player and leaves the ending unknown.
+Stroke selection is part of normal entry for every winner, forced error, and unforced error. Initial choices are forehand, backhand, volley, overhead, serve, and other. Aces and double faults have a known serve stroke without an extra question. Keep a deliberate shot-not-seen option for incomplete observations. Selecting Other identifies a stroke outside the listed categories. The players appear in scoreboard order. The last option, **Not sure how it ended**, records the selected point winner and leaves the ending unknown.
 
 Selecting a player and rally ending leaves the score as it is until the stroke is saved. Back returns from stroke selection to the available endings. Change winner returns to the player choice and preserves any serve observations for the current point.
 

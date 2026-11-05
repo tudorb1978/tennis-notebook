@@ -236,39 +236,36 @@ function Main() {
     const aceButton = <Button style={layout.cell} disabled={busy} onPress={() => void saveServiceEnding('ace')}>Ace</Button>;
     if (pending) {
       const { winner } = pending;
-      const loser = other(winner);
-      return <Stack>
-        <Card style={{ padding: 10, gap: 8 }}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <T small bold style={{ flex: 1 }}>{record.players[winner].name} won the point</T>
-            <Button quiet compact disabled={busy} onPress={() => void selectPointDetail(null)}>Change winner</Button>
-          </Row>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <T bold style={{ fontSize: 19, flexShrink: 1 }}>Last shot of the rally</T>
-            <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
-          </Row>
-          <T small bold>Played by {record.players[winner].name}</T>
-          <View style={layout.two}>
-            <Button testID={`ending-${winner}-winner`} label={`${record.players[winner].name} winner`} style={[layout.cell, { backgroundColor: c.soft }]} disabled={busy}
-              onPress={() => void selectPointDetail({ actor: winner, ending: 'winner' })}>Winner</Button>
-            {record.mode === 'endings' && pointServer === winner && canRecordAce && aceButton}
-          </View>
-          <T small bold>Played by {record.players[loser].name}</T>
-          <View style={layout.two}>
-            {(['unforced-error', 'forced-error'] as const).map(ending => <Button
-              key={ending} testID={`ending-${loser}-${ending}`} label={`${record.players[loser].name} ${endingNames[ending]}`} style={layout.cell} disabled={busy}
-              onPress={() => void selectPointDetail({ actor: loser, ending })}
-            >{endingNames[ending]}</Button>)}
-          </View>
-          {record.mode === 'endings' && pointServer === loser && !serveWasIn(obs) &&
-            <Button disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
-        </Card>
-        <Card style={{ paddingVertical: 10, gap: 5 }}>
-          <T small bold>Point winner only</T>
-          <T small muted>Use when you missed how the point ended.</T>
-          <Button compact disabled={busy} onPress={() => void savePoint({ type: 'winner-only', winner, observations: obs })}>Save winner only</Button>
-        </Card>
-      </Stack>;
+      return <Card style={{ padding: 10, gap: 8 }}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <T small bold style={{ flex: 1 }}>{record.players[winner].name} won the point</T>
+          <Button quiet compact disabled={busy} onPress={() => void selectPointDetail(null)}>Change winner</Button>
+        </Row>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <T bold style={{ fontSize: 19, flexShrink: 1 }}>Last shot of the rally</T>
+          <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
+        </Row>
+        {([0, 1] as const).map(side => {
+          const name = record.players[side].name;
+          const won = side === winner;
+          const endings = won ? ['winner'] as const : ['unforced-error', 'forced-error'] as const;
+          const showServiceEndings = record.mode === 'endings' && pointServer === side;
+          return <React.Fragment key={side}>
+            <T small bold>Played by {name}</T>
+            <View style={layout.two}>
+              {endings.map(ending => <Button
+                key={ending} testID={`ending-${side}-${ending}`} label={`${name} ${endingNames[ending]}`}
+                style={[layout.cell, won && { backgroundColor: c.soft }]} disabled={busy}
+                onPress={() => void selectPointDetail({ actor: side, ending })}
+              >{endingNames[ending]}</Button>)}
+              {showServiceEndings && won && canRecordAce && aceButton}
+            </View>
+            {showServiceEndings && !won && !serveWasIn(obs) &&
+              <Button disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
+          </React.Fragment>;
+        })}
+        <Button disabled={busy} onPress={() => void savePoint({ type: 'winner-only', winner, observations: obs })}>Not sure how it ended</Button>
+      </Card>;
     }
     const last = projection.pointEntries.at(-1);
     const firstServePending = obs.firstServe === 'unknown';
