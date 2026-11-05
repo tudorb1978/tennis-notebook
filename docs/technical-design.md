@@ -45,7 +45,7 @@ Use generated stable identifiers so records can be exported and later synchroniz
 
 Prefer explicit typed fields for core scoring and shot observations. Optional tags and notes extend the data without turning scoring into an unvalidated collection of arbitrary properties. Unknown, not applicable, and observed negative values have different meanings.
 
-Stroke is a core field for every observed winner or error. Quick endings collects the ending player, outcome, and stroke before committing the point. Preserve an explicit unknown value only when the observer chooses that escape. Keep stroke categories extensible, and compute per-player stroke breakdowns consistently in match reports and longer-term statistics.
+Stroke is a core field for every observed winner or error. Quick endings starts with the point winner and uses that choice to filter the possible endings before collecting the stroke. Preserve an explicit unknown value only when the observer chooses that option. Keep stroke categories extensible, and compute per-player stroke breakdowns consistently in match reports and longer-term statistics.
 
 ## Match history and corrections
 

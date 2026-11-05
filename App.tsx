@@ -17,7 +17,7 @@ import type { ImportPreview, MatchRepository } from './src/storage/repository.ts
 import { groupMatches, matchEventKey } from './src/storage/matchGroups.ts';
 import type { MatchGroup } from './src/storage/matchGroups.ts';
 import { emptyDraft } from './src/storage/model.ts';
-import type { MatchRecord, PlayerProfile } from './src/storage/model.ts';
+import type { MatchDraft, MatchRecord, PlayerProfile } from './src/storage/model.ts';
 import { endingNames, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
 import { pointNoteLabels, pointNoteSummary } from './src/reports/pointNotes.ts';
 import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
@@ -186,12 +186,12 @@ function Main() {
       setNotice(panel?.kind === 'point-notes' ? 'Point notes saved.' : 'Point updated.');
     });
   };
-  const outcome = (actor: Side, ending: 'winner' | 'unforced-error' | 'forced-error') =>
-    mutate(m => ({ ...m, draft: { ...m.draft, pending: { actor, ending } } }), () => mainScroll.current?.scrollTo({ y: 0, animated: false }));
+  const selectPointDetail = (pending: MatchDraft['pending']) =>
+    mutate(m => ({ ...m, draft: { ...m.draft, pending } }), () => mainScroll.current?.scrollTo({ y: 0, animated: false }));
   const stroke = (value: Stroke) => {
-    if (!record?.draft.pending) return;
-    const pending = record.draft.pending;
-    return savePoint({ type: 'ending', ...pending, stroke: value, observations: record.draft.observations });
+    const pending = record?.draft.pending;
+    if (!record || !pending || 'winner' in pending) return;
+    return savePoint({ type: 'ending', actor: pending.actor, ending: pending.ending, stroke: value, observations: record.draft.observations });
   };
   const saveServiceEnding = (type: 'ace' | 'double-fault') => {
     if (pointServer === undefined || !record) return;
@@ -208,16 +208,17 @@ function Main() {
     const obs = record.draft.observations; const pending = record.draft.pending;
     if (!ongoing && !paused) return <Stack><Notice>{score.status === 'abandoned' ? 'Match ended without a winner.' : `${record.players[score.winner!].name} wins${score.status === 'retired' ? ' by retirement' : ''}.`}</Notice><Button primary onPress={() => setTab('report')}>View match report</Button><Button disabled={busy} onPress={() => void mutate(m => ({ ...m, events: undoLast(m.format, m.firstServer, m.events, randomUUID()), draft: emptyDraft() }))}>Undo last action</Button></Stack>;
     if (paused) return <Card><Heading>Match paused</Heading><T muted>{record.timingStartedAt ? 'The match clock is paused. Your score and observations are saved.' : 'Your score and observations are saved.'}</T><Button primary disabled={busy} onPress={() => void addLifecycle({ type: 'resume' })}>Resume recording</Button><Button quiet disabled={busy} onPress={() => setPanel({ kind: 'finish' })}>Finish early</Button></Card>;
-    if (pending) {
+    if (pending && !('winner' in pending)) {
       const canPickServe = pending.actor === pointServer && (pending.ending === 'winner' || !serveWasIn(obs));
       const available = strokes.filter(stroke => stroke !== 'unknown' && (stroke !== 'serve' || canPickServe));
+      const winner = pending.ending === 'winner' ? pending.actor : other(pending.actor);
       return <Card style={{ gap: 8 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <View style={{ flex: 1 }}>
             <Eyebrow>{endingNames[pending.ending]}</Eyebrow>
             <T bold>{record.players[pending.actor].name}</T>
           </View>
-          <Button quiet disabled={busy} onPress={() => void mutate(m => ({ ...m, draft: { ...m.draft, pending: null } }))}>Back</Button>
+          <Button quiet disabled={busy} onPress={() => void selectPointDetail({ winner })}>Back</Button>
         </Row>
         <Heading>Which stroke?</Heading>
         {available.filter((_, index) => index % 2 === 0).map((first, index) => {
@@ -231,14 +232,50 @@ function Main() {
         <Button quiet testID="stroke-unknown" disabled={busy} onPress={() => void stroke('unknown')}>Shot not seen</Button>
       </Card>;
     }
+    const canRecordAce = obs.returnStroke === 'unknown' && obs.returnResult === 'unknown';
+    const aceButton = <Button style={layout.cell} disabled={busy} onPress={() => void saveServiceEnding('ace')}>Ace</Button>;
+    if (pending) {
+      const { winner } = pending;
+      const loser = other(winner);
+      return <Stack>
+        <Card style={{ padding: 10, gap: 8 }}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <T small bold style={{ flex: 1 }}>{record.players[winner].name} won the point</T>
+            <Button quiet compact disabled={busy} onPress={() => void selectPointDetail(null)}>Change winner</Button>
+          </Row>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <T bold style={{ fontSize: 19, flexShrink: 1 }}>Last shot of the rally</T>
+            <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
+          </Row>
+          <T small bold>Played by {record.players[winner].name}</T>
+          <View style={layout.two}>
+            <Button testID={`ending-${winner}-winner`} label={`${record.players[winner].name} winner`} style={[layout.cell, { backgroundColor: c.soft }]} disabled={busy}
+              onPress={() => void selectPointDetail({ actor: winner, ending: 'winner' })}>Winner</Button>
+            {record.mode === 'endings' && pointServer === winner && canRecordAce && aceButton}
+          </View>
+          <T small bold>Played by {record.players[loser].name}</T>
+          <View style={layout.two}>
+            {(['unforced-error', 'forced-error'] as const).map(ending => <Button
+              key={ending} testID={`ending-${loser}-${ending}`} label={`${record.players[loser].name} ${endingNames[ending]}`} style={layout.cell} disabled={busy}
+              onPress={() => void selectPointDetail({ actor: loser, ending })}
+            >{endingNames[ending]}</Button>)}
+          </View>
+          {record.mode === 'endings' && pointServer === loser && !serveWasIn(obs) &&
+            <Button disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
+        </Card>
+        <Card style={{ paddingVertical: 10, gap: 5 }}>
+          <T small bold>Point winner only</T>
+          <T small muted>Use when you missed how the point ended.</T>
+          <Button compact disabled={busy} onPress={() => void savePoint({ type: 'winner-only', winner, observations: obs })}>Save winner only</Button>
+        </Card>
+      </Stack>;
+    }
     const last = projection.pointEntries.at(-1);
     const firstServePending = obs.firstServe === 'unknown';
     const secondServePending = obs.firstServe === 'fault' && obs.secondServe === 'unknown';
-    const canRecordAce = obs.returnStroke === 'unknown' && obs.returnResult === 'unknown';
     const missedReturner = record.mode === 'detailed' && obs.returnResult === 'error' && pointServer !== undefined
       ? other(pointServer)
       : null;
-    const aceButton = <Button style={layout.cell} disabled={busy} onPress={() => void saveServiceEnding('ace')}>Ace</Button>;
     return <Stack>
       {record.mode === 'detailed' && <Card style={{ paddingHorizontal: 8, paddingVertical: 8, gap: 6 }}>
         <Row style={{ justifyContent: 'space-between' }}>
@@ -278,49 +315,15 @@ function Main() {
             onPress={() => void savePoint({ type: 'ending', actor: missedReturner, ending, stroke: obs.returnStroke, observations: obs })}
           >{endingNames[ending]}</Button>)}
         </View>
-      </Card> : record.mode === 'score' ? <Stack>
+      </Card> : <Card style={{ padding: 10, gap: 8 }}>
         <T bold style={{ fontSize: 19 }}>Who won the point?</T>
         <View style={layout.two}>
           {([0, 1] as const).map(side => <Button
-            key={side} primary style={[layout.cell, { minHeight: 80 }]} disabled={busy}
-            onPress={() => void savePoint({ type: 'winner-only', winner: side, observations: obs })}
-          >{`${record.players[side].name}\nwins point`}</Button>)}
-        </View>
-      </Stack> : <Card style={{ padding: 10, gap: 8 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <T bold style={{ fontSize: 19, flexShrink: 1 }}>Last shot of the rally</T>
-          <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
-        </Row>
-        <View style={{ gap: 6 }}>
-          <View style={layout.two}>
-            {record.players.map((player, i) => <View key={i} style={layout.cell}><T small bold>Played by {player.name}</T></View>)}
-          </View>
-          {(['winner', 'unforced-error', 'forced-error'] as const).map(ending => <View key={ending} style={layout.two}>
-            {([0, 1] as const).map(side => <Button
-              key={side} testID={`ending-${side}-${ending}`} label={`${record.players[side].name} ${endingNames[ending]}`}
-              disabled={busy} style={[layout.cell, { minHeight: 50, paddingVertical: 6, backgroundColor: ending === 'winner' ? c.soft : c.card }]}
-              onPress={() => void outcome(side, ending)}
-            >
-              <T bold style={{ fontSize: 15 }}>{endingNames[ending]}</T>
-            </Button>)}
-          </View>)}
-          {record.mode === 'endings' && <View style={layout.two}>
-            {aceButton}
-            {!serveWasIn(obs) && <Button style={layout.cell} disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
-          </View>}
-        </View>
-      </Card>}
-      {record.mode !== 'score' && missedReturner === null && <Card style={{ paddingVertical: 10, gap: 5 }}>
-        <T small bold>Point winner only</T>
-        <T small muted>Use when you missed how the point ended.</T>
-        <View style={layout.two}>
-          {([0, 1] as const).map(side => <Button
-            key={side} compact label={`${record.players[side].name} won the point`} style={layout.cell} disabled={busy}
-            onPress={() => void savePoint({ type: 'winner-only', winner: side, observations: obs })}
-          >
-            <T small bold style={{ textAlign: 'center' }}>{record.players[side].name}</T>
-            <T small muted style={{ textAlign: 'center' }}>won the point</T>
-          </Button>)}
+            key={side} testID={`point-winner-${side}`} primary style={layout.cell} disabled={busy}
+            onPress={() => void (record.mode === 'score'
+              ? savePoint({ type: 'winner-only', winner: side, observations: obs })
+              : selectPointDetail({ winner: side }))}
+          >{record.players[side].name}</Button>)}
         </View>
       </Card>}
       {last && <Card style={{ backgroundColor: c.soft, paddingVertical: 8, gap: 4 }}>

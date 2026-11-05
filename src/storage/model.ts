@@ -10,7 +10,7 @@ export interface PlayerProfile { id: string; name: string; createdAt: string }
 export interface PlayerSnapshot { id: string | null; name: string }
 export type RecordingMode = 'score' | 'endings' | 'detailed';
 export interface PendingEnding { actor: Side; ending: 'winner' | 'unforced-error' | 'forced-error' }
-export interface MatchDraft { observations: PointObservations; pending: PendingEnding | null; lets: number; actualServer?: Side | null }
+export interface MatchDraft { observations: PointObservations; pending: PendingEnding | { winner: Side } | null; lets: number; actualServer?: Side | null }
 export interface MatchRecord {
   schemaVersion: 1;
   id: string;
@@ -72,7 +72,11 @@ export function validateMatch(value: unknown): asserts value is MatchRecord {
   if (!Number.isSafeInteger(value.draft.lets) || (value.draft.lets as number) < 0) throw new Error('Invalid draft.');
   if (value.draft.pending !== null) {
     object(value.draft.pending);
-    if (![0, 1].includes(value.draft.pending.actor as number) || !['winner', 'unforced-error', 'forced-error'].includes(value.draft.pending.ending as string)) throw new Error('Invalid pending stroke.');
+    if ('winner' in value.draft.pending) {
+      if (value.draft.pending.winner !== 0 && value.draft.pending.winner !== 1) throw new Error('Invalid pending point winner.');
+    } else if (![0, 1].includes(value.draft.pending.actor as number) || !['winner', 'unforced-error', 'forced-error'].includes(value.draft.pending.ending as string)) {
+      throw new Error('Invalid pending stroke.');
+    }
   }
   const obs = value.draft.observations;
   if (!['in', 'fault', 'unknown'].includes(obs.firstServe as string) || !['in', 'fault', 'unknown'].includes(obs.secondServe as string)) throw new Error('Invalid draft serve.');

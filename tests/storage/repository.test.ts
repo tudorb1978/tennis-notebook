@@ -36,7 +36,7 @@ test('SQLite stores and recovers a pending stroke, serve draft, and point after 
     match = await repo.saveMatch({ ...match, draft: { observations: { ...match.draft.observations, firstServe: 'fault', secondServe: 'in' }, pending: { actor: 1, ending: 'unforced-error' }, lets: 1 } }, match.revision);
     db.close(); db = new DatabaseSync(path); repo = new MatchRepository(adapter(db)); await repo.initialize();
     const restored = (await repo.getMatch(match.id))!;
-    assert.equal(restored.draft.pending!.ending, 'unforced-error');
+    assert.deepEqual(restored.draft.pending, { actor: 1, ending: 'unforced-error' });
     assert.equal(restored.draft.observations.secondServe, 'in');
     assert.equal(await repo.resumeId(), match.id);
     const events = appendEvent(restored.format, restored.firstServer, restored.events, { id: 'point-1', type: 'point', input: { type: 'ending', actor: 1, ending: 'unforced-error', stroke: 'backhand', observations: restored.draft.observations } });
