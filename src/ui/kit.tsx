@@ -1,10 +1,23 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
+import type { Side } from '../domain/scoring.ts';
 
+type PlayerBadgeColors = { backgroundColor: string; borderColor: string; ink: string };
+type PlayerBadgePalette = readonly [PlayerBadgeColors, PlayerBadgeColors];
 const court = { court: '#15382b', courtInk: '#f6f9ef', courtSub: '#c4d6c7', courtLine: '#49675a', lime: '#e0f2ae', limeInk: '#183325' };
-const light = { ...court, bg: '#f4f5ed', card: '#ffffff', ink: '#192f25', sub: '#506257', line: '#d2dbcf', accent: '#214a38', on: '#ffffff', soft: '#e8f0dd', error: '#a22e28' };
-const dark = { ...court, bg: '#151e19', card: '#202b24', ink: '#edf4ed', sub: '#becdc1', line: '#495d50', accent: '#d5e8aa', on: '#172c1c', soft: '#2b4131', error: '#ffb4a8' };
+const light = { ...court, bg: '#f4f5ed', card: '#ffffff', ink: '#192f25', sub: '#506257', line: '#d2dbcf', accent: '#214a38', on: '#ffffff', soft: '#e8f0dd', error: '#a22e28',
+  playerBadges: [
+    { backgroundColor: '#dbeafe', borderColor: '#5985b4', ink: '#153e69' },
+    { backgroundColor: '#ffedd5', borderColor: '#a86a35', ink: '#733d13' },
+  ] satisfies PlayerBadgePalette,
+};
+const dark = { ...court, bg: '#151e19', card: '#202b24', ink: '#edf4ed', sub: '#becdc1', line: '#495d50', accent: '#d5e8aa', on: '#172c1c', soft: '#2b4131', error: '#ffb4a8',
+  playerBadges: [
+    { backgroundColor: '#203f5c', borderColor: '#84b0e2', ink: '#dbedff' },
+    { backgroundColor: '#503725', borderColor: '#d9a272', ink: '#ffe9d1' },
+  ] satisfies PlayerBadgePalette,
+};
 export type Palette = typeof light;
 const Theme = createContext(light);
 export function AppTheme({ children }: { children: React.ReactNode }) { const scheme = useColorScheme(); return <Theme.Provider value={scheme === 'dark' ? dark : light}>{children}</Theme.Provider>; }
@@ -14,6 +27,12 @@ export function T({ children, small = false, muted = false, bold = false, style 
 }
 export function Heading({ children }: { children: React.ReactNode }) { const c = useTheme(); return <Text accessibilityRole="header" style={{ fontSize: 27, lineHeight: 32, fontWeight: '700', color: c.ink, letterSpacing: -0.7 }}>{children}</Text>; }
 export function Eyebrow({ children, style }: { children: React.ReactNode; style?: object }) { return <T small bold muted style={{ fontSize: 11, lineHeight: 16, letterSpacing: 1.1, textTransform: 'uppercase', ...style }}>{children}</T>; }
+export function PlayerBadge({ side, children, numberOfLines, style }: { side: Side; children: string; numberOfLines?: number; style?: StyleProp<ViewStyle> }) {
+  const { backgroundColor, borderColor, ink } = useTheme().playerBadges[side];
+  return <View style={[{ alignSelf: 'flex-start', flexShrink: 1, maxWidth: '100%', backgroundColor, borderColor, borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }, style]}>
+    <Text numberOfLines={numberOfLines} style={{ color: ink, fontSize: 14, lineHeight: 19, fontWeight: '700' }}>{children}</Text>
+  </View>;
+}
 export function Button({ children, onPress, primary = false, quiet = false, compact = false, selected = false, toggle = false, destructive = false, disabled = false, testID, style, label }: { children: React.ReactNode; onPress: () => void; primary?: boolean; quiet?: boolean; compact?: boolean; selected?: boolean; toggle?: boolean; destructive?: boolean; disabled?: boolean; testID?: string; style?: StyleProp<ViewStyle>; label?: string }) {
   const c = useTheme(); const filled = primary || selected || destructive;
   const fillColor = destructive ? c.error : c.accent;

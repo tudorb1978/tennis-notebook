@@ -21,7 +21,7 @@ import type { MatchDraft, MatchRecord, PlayerProfile } from './src/storage/model
 import { endingNames, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
 import { pointNoteLabels, pointNoteSummary } from './src/reports/pointNotes.ts';
 import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
-import { AppTheme, Button, Card, Choices, Eyebrow, Heading, Notice, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
+import { AppTheme, Button, Card, Choices, Eyebrow, Heading, Notice, PlayerBadge, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
 import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, modeOptions, PointEditor, SetupForm } from './src/ui/forms.tsx';
 import type { SetupValues } from './src/ui/forms.tsx';
 import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
@@ -214,9 +214,9 @@ function Main() {
       const winner = pending.ending === 'winner' ? pending.actor : other(pending.actor);
       return <Card style={{ gap: 8 }}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, gap: 3 }}>
             <Eyebrow>{endingNames[pending.ending]}</Eyebrow>
-            <T bold>{record.players[pending.actor].name}</T>
+            <PlayerBadge side={pending.actor}>{record.players[pending.actor].name}</PlayerBadge>
           </View>
           <Button quiet disabled={busy} onPress={() => void selectPointDetail({ winner })}>Back</Button>
         </Row>
@@ -251,7 +251,7 @@ function Main() {
           const endings = won ? ['winner'] as const : ['unforced-error', 'forced-error'] as const;
           const showServiceEndings = record.mode === 'endings' && pointServer === side;
           return <React.Fragment key={side}>
-            <T small bold>Played by {name}</T>
+            <PlayerBadge side={side}>{`Played by ${name}`}</PlayerBadge>
             <View style={layout.two}>
               {endings.map(ending => <Button
                 key={ending} testID={`ending-${side}-${ending}`} label={`${name} ${endingNames[ending]}`}
@@ -303,7 +303,7 @@ function Main() {
       </Card>}
       {missedReturner !== null ? <Card style={{ padding: 10, gap: 8 }}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <T bold style={{ flexShrink: 1 }}>{record.players[missedReturner].name} missed the return</T>
+          <PlayerBadge side={missedReturner} style={{ alignSelf: 'center' }}>{`${record.players[missedReturner].name} missed the return`}</PlayerBadge>
           <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
         </Row>
         <View style={layout.two}>
@@ -317,12 +317,16 @@ function Main() {
       </Card> : <Card style={{ padding: 10, gap: 8 }}>
         <T bold style={{ fontSize: 19 }}>Who won the point?</T>
         <View style={layout.two}>
-          {([0, 1] as const).map(side => <Button
-            key={side} testID={`point-winner-${side}`} primary style={layout.cell} disabled={busy}
-            onPress={() => void (record.mode === 'score'
-              ? savePoint({ type: 'winner-only', winner: side, observations: obs })
-              : selectPointDetail({ winner: side }))}
-          >{record.players[side].name}</Button>)}
+          {([0, 1] as const).map(side => {
+            const name = record.players[side].name;
+            const { backgroundColor, borderColor, ink } = c.playerBadges[side];
+            return <Button
+              key={side} testID={`point-winner-${side}`} label={name} style={[layout.cell, { backgroundColor, borderColor }]} disabled={busy}
+              onPress={() => void (record.mode === 'score'
+                ? savePoint({ type: 'winner-only', winner: side, observations: obs })
+                : selectPointDetail({ winner: side }))}
+            ><T bold style={{ color: ink, fontSize: 15, textAlign: 'center' }}>{name}</T></Button>;
+          })}
         </View>
       </Card>}
       {last && <Card style={{ backgroundColor: c.soft, paddingVertical: 8, gap: 4 }}>

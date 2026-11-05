@@ -5,7 +5,7 @@ import { pointLabels } from '../domain/scoring.ts';
 import type { MatchScore } from '../domain/scoring.ts';
 import type { MatchRecord } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
-import { Button, Card, T, useTheme } from './kit.tsx';
+import { Button, Card, PlayerBadge, T, useTheme } from './kit.tsx';
 
 function MatchClock({ playingMs, runningSinceMs }: { playingMs: number; runningSinceMs: number | null }) {
   const c = useTheme();
@@ -66,9 +66,9 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
       }}>{col.label}</Text>)}
     </View>
     {([0, 1] as const).map(side => <View key={side} style={row}>
-      <View style={{ ...row, flex: 1, paddingRight: 4 }}>
+      <View style={{ ...row, flex: 1, minWidth: 0, paddingRight: 4 }}>
         <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: serving === side ? c.lime : 'transparent' }} />
-        <Text numberOfLines={2} style={{ color: c.courtInk, flex: 1, fontSize: 16, lineHeight: 20, fontWeight: '700' }}>{record.players[side].name}</Text>
+        <PlayerBadge side={side} numberOfLines={2} style={{ alignSelf: 'center' }}>{record.players[side].name}</PlayerBadge>
       </View>
       {columns.map((col, i) => <View key={i} style={{
         width: scoreWidth(col.large), minHeight: 34, justifyContent: 'center', borderRadius: 8,
