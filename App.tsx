@@ -21,7 +21,7 @@ import type { MatchDraft, MatchRecord, PlayerProfile } from './src/storage/model
 import { endingNames, pointEndingLabel, pointScoreBefore, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
 import { pointNoteLabels, pointNoteSummary } from './src/reports/pointNotes.ts';
 import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
-import { AppTheme, Button, Card, Choices, Eyebrow, Heading, Notice, PlayerBadge, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
+import { AppTheme, Button, Card, Choices, Eyebrow, Heading, Notice, PlayerBadge, playerBadgeColors, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
 import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, MatchNotesEditor, modeOptions, PointEditor, SetupForm } from './src/ui/forms.tsx';
 import type { SetupValues } from './src/ui/forms.tsx';
 import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
@@ -320,7 +320,7 @@ function Main() {
         <View style={layout.two}>
           {([0, 1] as const).map(side => {
             const name = record.players[side].name;
-            const { backgroundColor, borderColor, ink } = c.playerBadges[side];
+            const { backgroundColor, borderColor, ink } = playerBadgeColors(c, side);
             return <Button
               key={side} testID={`point-winner-${side}`} label={name} style={[layout.cell, { backgroundColor, borderColor }]} disabled={busy}
               onPress={() => void (record.mode === 'score'
