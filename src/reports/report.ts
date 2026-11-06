@@ -61,8 +61,12 @@ export function timingLabels(timing: MatchTiming | null): string[] {
   return labels;
 }
 export function escapeHTML(value: unknown): string { return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!); }
+export function replayMatchForReport(record: MatchRecord) {
+  if (record.firstServer === null) throw new Error('Start the match before opening a report.');
+  return replayMatch(record.format, record.firstServer, record.events, record.timingStartedAt);
+}
 export function reportHTML(record: MatchRecord): string {
-  const { score, stats, points, pointEntries, hasScoreCorrections, timing } = replayMatch(record.format, record.firstServer, record.events, record.timingStartedAt);
+  const { score, stats, points, pointEntries, hasScoreCorrections, timing } = replayMatchForReport(record);
   const times = timingLabels(timing);
   const e = escapeHTML;
   const names = [record.players[0].name, record.players[1].name] as const;
@@ -95,7 +99,7 @@ function csvCell(value: unknown): string {
   return '"' + text.replace(/"/g, '""') + '"';
 }
 export function reportCSV(record: MatchRecord): string {
-  const { pointEntries } = replayMatch(record.format, record.firstServer, record.events);
+  const { pointEntries } = replayMatchForReport(record);
   const names = [record.players[0].name, record.players[1].name] as const;
   const name = (side: Side | null) => side === null ? '' : record.players[side].name;
   const rows: unknown[][] = [['Point', 'Date', 'Group', 'Stage', 'Games before', 'Points before', 'Server', 'Winner', 'Ending player', 'Ending', 'Stroke', 'First serve', 'Second serve', 'Return stroke', 'Return result', 'Long rally', 'Questionable call', 'Disputed', 'Call by', 'Notes', 'Rally length estimate', 'Questionable call by', 'Tracked player observations', 'Opponent observations']];

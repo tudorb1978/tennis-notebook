@@ -2,6 +2,7 @@ import { replayMatch } from '../domain/history.ts';
 import type { MatchEvent } from '../domain/history.ts';
 import { emptyObservations } from '../domain/points.ts';
 import type { PointObservations } from '../domain/points.ts';
+import { validateFormat } from '../domain/scoring.ts';
 import type { MatchFormat, Side } from '../domain/scoring.ts';
 import { validatePointNoteOptions } from '../domain/pointNotes.ts';
 import { isMatchDate } from '../domain/matchDates.ts';
@@ -12,13 +13,12 @@ export type RecordingMode = 'score' | 'endings' | 'detailed';
 export const matchNotesMaxLength = 4000;
 export interface PendingEnding { actor: Side; ending: 'winner' | 'unforced-error' | 'forced-error' }
 export interface MatchDraft { observations: PointObservations; pending: PendingEnding | { winner: Side } | null; lets: number; actualServer?: Side | null }
-export interface MatchRecord {
+interface MatchDetails {
   schemaVersion: 1;
   id: string;
   revision: number;
   createdAt: string;
   updatedAt: string;
-  timingStartedAt?: string;
   players: [PlayerSnapshot, PlayerSnapshot];
   date: string;
   group: string;
@@ -30,11 +30,13 @@ export interface MatchRecord {
   conditions: string;
   matchNotes?: string;
   format: MatchFormat;
-  firstServer: Side;
   mode: RecordingMode;
   events: readonly MatchEvent[];
   draft: MatchDraft;
 }
+export interface StartedMatchRecord extends MatchDetails { firstServer: Side; timingStartedAt?: string }
+export interface UnstartedMatchRecord extends MatchDetails { firstServer: null; timingStartedAt: null }
+export type MatchRecord = StartedMatchRecord | UnstartedMatchRecord;
 export function emptyDraft(): MatchDraft { return { observations: emptyObservations(), pending: null, lets: 0 }; }
 export interface Backup { schemaVersion: 1; application: 'tennis-tracker'; exportedAt: string; players: PlayerProfile[]; matches: MatchRecord[] }
 
@@ -53,7 +55,6 @@ export function validateMatch(value: unknown): asserts value is MatchRecord {
   object(value);
   if (value.schemaVersion !== 1) throw new Error('Unsupported match version.');
   id(value.id); timestamp(value.createdAt); timestamp(value.updatedAt);
-  if (value.timingStartedAt !== undefined) timestamp(value.timingStartedAt);
   if (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0) throw new Error('Invalid match revision.');
   if (!Array.isArray(value.players) || value.players.length !== 2) throw new Error('A match needs two sides.');
   for (const player of value.players) { object(player); if (player.id !== null) id(player.id); text(player.name, 80, true); }
@@ -91,7 +92,13 @@ export function validateMatch(value: unknown): asserts value is MatchRecord {
   if (![null, 0, 1, 'official', 'unknown'].includes(obs.callBy as null | number | string)) throw new Error('Invalid call attribution.');
   text(obs.notes, 2000);
   const match = value as unknown as MatchRecord;
-  replayMatch(match.format, match.firstServer, match.events);
+  if (match.firstServer === null) {
+    if (match.timingStartedAt !== null || match.events.length !== 0) throw new Error('A match must be started before recording play.');
+    validateFormat(match.format);
+  } else {
+    if (match.timingStartedAt !== undefined) timestamp(match.timingStartedAt);
+    replayMatch(match.format, match.firstServer, match.events);
+  }
 }
 
 export function parseBackup(input: string): Backup {

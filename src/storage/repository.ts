@@ -1,5 +1,6 @@
 import { parseBackup, validateMatch, validatePlayer } from './model.ts';
-import type { Backup, MatchRecord, PlayerProfile } from './model.ts';
+import type { Backup, MatchRecord, PlayerProfile, StartedMatchRecord, UnstartedMatchRecord } from './model.ts';
+import type { Side } from '../domain/scoring.ts';
 
 export type SQLValue = string | number | null;
 export interface Database {
@@ -42,30 +43,45 @@ export class MatchRepository {
     if (!row) return null; const record: unknown = JSON.parse(row.payload); validateMatch(record); return record;
   }
   async resumeId(): Promise<string | null> { return (await this.db.getFirstAsync<{ value: string | null }>("SELECT value FROM preferences WHERE key = 'resumeMatch'"))?.value ?? null; }
-  setResumeId(id: string | null): Promise<void> {
-    return this.serial(async () => { await this.db.runAsync("INSERT INTO preferences(key,value) VALUES('resumeMatch',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", id); });
+  private async writeResumeId(id: string | null): Promise<void> {
+    await this.db.runAsync("INSERT INTO preferences(key,value) VALUES('resumeMatch',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", id);
   }
-  createMatch(record: MatchRecord, player: PlayerProfile | null): Promise<MatchRecord> {
+  setResumeId(id: string | null): Promise<void> {
+    return this.serial(() => this.writeResumeId(id));
+  }
+  createMatch<T extends MatchRecord>(record: T, player: PlayerProfile | null): Promise<T> {
     return this.serial(async () => {
       const saved = { ...record, revision: 1 }; validateMatch(saved);
       if (player) validatePlayer(player);
       await this.db.withTransactionAsync(async () => {
         if (player) await this.db.runAsync('INSERT INTO players(id,name,createdAt) VALUES(?,?,?)', player.id, player.name, player.createdAt);
         const owner = await this.db.getFirstAsync<{ id: string }>('SELECT id FROM players WHERE id = ?', saved.players[0].id);
-        if (!owner) throw new Error('Select a saved player before starting.');
+        if (!owner) throw new Error('Select a saved player before saving the match.');
         await this.db.runAsync('INSERT INTO matches(id,revision,updatedAt,playerId,payload) VALUES(?,?,?,?,?)', saved.id, saved.revision, saved.updatedAt, saved.players[0].id, JSON.stringify(saved));
-        await this.db.runAsync("INSERT INTO preferences(key,value) VALUES('resumeMatch',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", saved.id);
+        if (saved.firstServer !== null) await this.writeResumeId(saved.id);
       });
       return saved;
     });
   }
-  saveMatch(record: MatchRecord, expectedRevision: number): Promise<MatchRecord> {
+  startMatch(record: UnstartedMatchRecord, firstServer: Side): Promise<StartedMatchRecord> {
+    const now = new Date().toISOString();
     return this.serial(async () => {
-      const saved = { ...record, revision: expectedRevision + 1 }; validateMatch(saved);
-      const result = await this.db.runAsync('UPDATE matches SET revision=?, updatedAt=?, payload=? WHERE id=? AND revision=?', saved.revision, saved.updatedAt, JSON.stringify(saved), saved.id, expectedRevision);
-      if (result.changes !== 1) throw new Error('This match changed elsewhere. Reopen it before recording more points.');
+      let saved!: StartedMatchRecord;
+      await this.db.withTransactionAsync(async () => {
+        saved = await this.writeMatch({ ...record, firstServer, timingStartedAt: now, updatedAt: now }, record.revision);
+        await this.writeResumeId(saved.id);
+      });
       return saved;
     });
+  }
+  saveMatch<T extends MatchRecord>(record: T, expectedRevision: number): Promise<T> {
+    return this.serial(() => this.writeMatch(record, expectedRevision));
+  }
+  private async writeMatch<T extends MatchRecord>(record: T, expectedRevision: number): Promise<T> {
+    const saved = { ...record, revision: expectedRevision + 1 }; validateMatch(saved);
+    const result = await this.db.runAsync('UPDATE matches SET revision=?, updatedAt=?, payload=? WHERE id=? AND revision=?', saved.revision, saved.updatedAt, JSON.stringify(saved), saved.id, expectedRevision);
+    if (result.changes !== 1) throw new Error('This match changed elsewhere. Reopen it before making changes.');
+    return saved;
   }
   deleteMatch(id: string, expectedRevision: number): Promise<void> {
     return this.serial(() => this.db.withTransactionAsync(async () => {

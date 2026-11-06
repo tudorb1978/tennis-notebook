@@ -4,13 +4,14 @@ import type { MatchRecord } from '../storage/model.ts';
 import { pointNoteSummary } from './pointNotes.ts';
 
 export function playerPerformance(matches: readonly MatchRecord[], name: string, scope: string) {
-  const projections = matches.map(match => replayMatch(match.format, match.firstServer, match.events));
+  const projections = matches.filter(match => match.firstServer !== null)
+    .map(match => replayMatch(match.format, match.firstServer, match.events));
   const points = projections.flatMap(match => match.points);
   const wins = projections.filter(match => match.score.winner === 0).length;
   const losses = projections.filter(match => match.score.winner === 1).length;
   return {
-    name, scope, matchCount: matches.length, pointCount: points.length,
-    wins, losses, undecided: matches.length - wins - losses,
+    name, scope, matchCount: projections.length, pointCount: points.length,
+    wins, losses, undecided: projections.length - wins - losses,
     stats: summarisePoints(points).players[0],
     noteSummary: pointNoteSummary(points, [name, 'Opponents']),
     hasScoreCorrections: projections.some(match => match.hasScoreCorrections),

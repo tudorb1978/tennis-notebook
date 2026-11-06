@@ -17,12 +17,12 @@ import type { ImportPreview, MatchRepository } from './src/storage/repository.ts
 import { groupMatches, matchEventKey } from './src/storage/matchGroups.ts';
 import type { MatchGroup } from './src/storage/matchGroups.ts';
 import { emptyDraft } from './src/storage/model.ts';
-import type { MatchDraft, MatchRecord, PlayerProfile } from './src/storage/model.ts';
+import type { MatchDraft, MatchRecord, PlayerProfile, UnstartedMatchRecord } from './src/storage/model.ts';
 import { endingNames, pointEndingLabel, pointScoreBefore, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
 import { pointNoteLabels, pointNoteSummary } from './src/reports/pointNotes.ts';
 import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
 import { AppTheme, Button, Card, Choices, Eyebrow, Heading, Notice, PlayerBadge, playerBadgeColors, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
-import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, MatchNotesEditor, modeOptions, PointEditor, SetupForm } from './src/ui/forms.tsx';
+import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, MatchNotesEditor, modeOptions, PointEditor, SetupForm, StartMatchForm } from './src/ui/forms.tsx';
 import type { SetupValues } from './src/ui/forms.tsx';
 import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
 import { OutcomeGuide, OutcomeHelpButton } from './src/ui/OutcomeGuide.tsx';
@@ -40,7 +40,7 @@ const matchTabs = [
   { value: 'report', label: 'Report', icon: 'report' },
 ] as const;
 type PointPanel = 'edit-point' | 'point-notes';
-type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'settings' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
+type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'open-unstarted-match' | 'start-match'; match: UnstartedMatchRecord } | { kind: 'settings' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
 function AwakeWhileRecording() { useKeepAwake('tennis-recording'); return null; }
 function Main() {
   const c = useTheme(); const layout = useLayout();
@@ -73,7 +73,7 @@ function Main() {
       const [savedPlayers, savedMatches, resumeId] = await Promise.all([repo.players(), repo.matches(), repo.resumeId()]);
       setPlayers(savedPlayers); setMatches(savedMatches);
       const active = savedMatches.find(m => m.id === resumeId);
-      if (active && ['in-progress', 'suspended'].includes(replayMatch(active.format, active.firstServer, active.events).score.status)) {
+      if (active && active.firstServer !== null && ['in-progress', 'suspended'].includes(replayMatch(active.format, active.firstServer, active.events).score.status)) {
         current.current = active; setRecord(active); setTab('record'); setScreen('match');
       } else setScreen('home');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open saved records.'); setScreen('home'); }
@@ -100,7 +100,14 @@ function Main() {
       retry.current = () => mutate(transform, done); return false;
     } finally { saving.current = false; setBusy(false); }
   };
-  const addEvent = (event: MatchEvent, done?: () => void, clearDraft = false) => mutate(m => ({ ...m, events: appendEvent(m.format, m.firstServer, m.events, event), draft: clearDraft ? emptyDraft() : m.draft }), done);
+  const addEvent = (event: MatchEvent, done?: () => void, clearDraft = false) => mutate(m => {
+    if (m.firstServer === null) throw new Error('Start the match before recording play.');
+    return { ...m, events: appendEvent(m.format, m.firstServer, m.events, event), draft: clearDraft ? emptyDraft() : m.draft };
+  }, done);
+  const undo = () => mutate(m => {
+    if (m.firstServer === null) throw new Error('Start the match before recording play.');
+    return { ...m, events: undoLast(m.format, m.firstServer, m.events, randomUUID()), draft: emptyDraft() };
+  });
   const addLifecycle = (action: LifecycleAction, done?: () => void, clearDraft = false) =>
     addEvent({ id: randomUUID(), type: 'lifecycle', action, recordedAt: new Date().toISOString() }, done, clearDraft);
   const savePoint = (input: PointInput) => {
@@ -123,6 +130,10 @@ function Main() {
     await external(async () => {
       const latest = await repository.current!.getMatch(id);
       if (!latest) throw new Error('This match could not be found.');
+      if (latest.firstServer === null) {
+        setPanel({ kind: 'open-unstarted-match', match: latest });
+        return;
+      }
       const status = replayMatch(latest.format, latest.firstServer, latest.events).score.status;
       if (status === 'suspended' && choice === undefined) {
         setPanel({ kind: 'open-paused-match', match: latest });
@@ -135,17 +146,22 @@ function Main() {
     });
     if (resume) await addLifecycle({ type: 'resume' });
   };
+  const closePanel = () => {
+    if (screen === 'home') setCurrent(null);
+    setPanel(null); setError(''); retry.current = null;
+  };
   useEffect(() => {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
       if (saving.current) return true;
       if (guideOpen) { setGuideOpen(false); return true; }
-      if (panel) { setPanel(null); setError(''); return true; }
+      if (panel) { closePanel(); return true; }
       if (screen === 'match' || screen === 'setup' || screen === 'player-report') { void home(); return true; }
       return false;
     });
     return () => listener.remove();
   });
-  const projection = useMemo(() => record ? replayMatch(record.format, record.firstServer, record.events, record.timingStartedAt) : null, [record]);
+  const projection = useMemo(() => record && record.firstServer !== null
+    ? replayMatch(record.format, record.firstServer, record.events, record.timingStartedAt) : null, [record]);
   const scheduledServer = projection?.score.current?.server;
   const pointServer = record?.draft.actualServer ?? scheduledServer;
   const togglePointServer = () => {
@@ -170,7 +186,7 @@ function Main() {
     setScreen('player-report');
   };
 
-  const start = (values: SetupValues) => external(async () => {
+  const saveSetup = (values: SetupValues) => external(async () => {
     const name = values.playerId ? players.find(p => p.id === values.playerId)?.name : values.playerName.trim();
     if (!name || !values.opponent.trim()) throw new Error('Enter a name for each player.');
     const now = new Date().toISOString();
@@ -178,11 +194,17 @@ function Main() {
     const ownerId = values.playerId || newPlayer!.id;
     const details = matchDetailsFrom(values);
     const eventId = setupEvent?.key ?? (details.group ? `event:${randomUUID()}` : undefined);
-    const next: MatchRecord = { schemaVersion: 1, id: randomUUID(), revision: 0, createdAt: now, updatedAt: now, timingStartedAt: now,
+    const next: UnstartedMatchRecord = { schemaVersion: 1, id: randomUUID(), revision: 0, createdAt: now, updatedAt: now, timingStartedAt: null,
       players: [{ id: ownerId, name }, { id: null, name: values.opponent.trim() }], ...details, ...(eventId ? { eventId } : {}),
-      format: presets[values.preset], firstServer: values.firstServer, mode: values.mode, events: [], draft: emptyDraft() };
+      format: presets[values.preset], firstServer: null, mode: values.mode, events: [], draft: emptyDraft() };
     const saved = await repository.current!.createMatch(next, newPlayer);
-    setPlayers(await repository.current!.players()); updateList(saved); setCurrent(saved); setScreen('match'); setTab('record'); setNotice('Ready for the first point.');
+    if (newPlayer) setPlayers(await repository.current!.players());
+    updateList(saved); setScreen('home'); setNotice('Match saved. Open it when you’re ready to start.');
+  });
+  const startMatch = (match: UnstartedMatchRecord, firstServer: Side) => external(async () => {
+    const saved = await repository.current!.startMatch(match, firstServer);
+    updateList(saved); setCurrent(saved); setPanel(null); setTab('record'); setScreen('match');
+    setNotice('Ready for the first point.');
   });
   const exportBackup = () => external(async () => {
     const data = await repository.current!.backup();
@@ -225,7 +247,7 @@ function Main() {
     if (!record || !projection) return null;
     const score = projection.score; const ongoing = score.status === 'in-progress'; const paused = score.status === 'suspended';
     const obs = record.draft.observations; const pending = record.draft.pending;
-    if (!ongoing && !paused) return <Stack><Notice>{score.status === 'abandoned' ? 'Match ended without a winner.' : `${record.players[score.winner!].name} wins${score.status === 'retired' ? ' by retirement' : ''}.`}</Notice><Button primary onPress={() => setTab('report')}>View match report</Button><Button disabled={busy} onPress={() => void mutate(m => ({ ...m, events: undoLast(m.format, m.firstServer, m.events, randomUUID()), draft: emptyDraft() }))}>Undo last action</Button></Stack>;
+    if (!ongoing && !paused) return <Stack><Notice>{score.status === 'abandoned' ? 'Match ended without a winner.' : `${record.players[score.winner!].name} wins${score.status === 'retired' ? ' by retirement' : ''}.`}</Notice><Button primary onPress={() => setTab('report')}>View match report</Button><Button disabled={busy} onPress={() => void undo()}>Undo last action</Button></Stack>;
     if (paused) return <Card><Heading>Match paused</Heading><T muted>{record.timingStartedAt ? 'The match clock is paused. Your score and observations are saved.' : 'Your score and observations are saved.'}</T><Button primary disabled={busy} onPress={() => void addLifecycle({ type: 'resume' })}>Resume recording</Button><Button quiet disabled={busy} onPress={() => setPanel({ kind: 'finish' })}>Finish early</Button></Card>;
     if (pending && !('winner' in pending)) {
       const canPickServe = pending.actor === pointServer && (pending.ending === 'winner' || !serveWasIn(obs));
@@ -518,7 +540,7 @@ function Main() {
         {!panel && errorBlock}
         {screen === 'loading' ? <ActivityIndicator accessibilityLabel="Opening saved matches" color={c.accent} size="large" />
           : screen === 'home' ? homeContent()
-          : screen === 'setup' ? <SetupForm players={players} event={setupEvent} preferredPlayerId={filter === 'all' ? null : filter} busy={busy} onStart={start} />
+          : screen === 'setup' ? <SetupForm players={players} event={setupEvent} preferredPlayerId={filter === 'all' ? null : filter} busy={busy} onSave={saveSetup} />
           : screen === 'player-report' ? <PlayerPerformance
             players={players} matches={matches} playerId={reportPlayerId} event={reportEvent} hasEvents={events.length > 0} busy={busy}
             onPlayer={setReportPlayerId} onChooseEvent={() => { setError(''); setPanel({ kind: 'pick-event-for-report' }); }}
@@ -532,7 +554,7 @@ function Main() {
       </ScrollView>
     </KeyboardAvoidingView>
     {screen === 'match' && <View style={layout.footer}><View style={layout.footerContent}>
-      <Button testID="undo" label="Undo last action" quiet compact style={{ paddingHorizontal: 6 }} disabled={busy || !projection?.lastActionId} onPress={() => void mutate(m => ({ ...m, events: undoLast(m.format, m.firstServer, m.events, randomUUID()), draft: emptyDraft() }))}>
+      <Button testID="undo" label="Undo last action" quiet compact style={{ paddingHorizontal: 6 }} disabled={busy || !projection?.lastActionId} onPress={() => void undo()}>
         <View style={{ alignItems: 'center', gap: 3 }}><Icon name="undo" color={c.sub} size={17} /><T small muted style={{ fontSize: 11, lineHeight: 15 }}>Undo</T></View>
       </Button>
       {matchTabs.map(({ value, label, icon }) => {
@@ -551,12 +573,12 @@ function Main() {
 
     <Modal visible={panel !== null || guideOpen} transparent animationType="none" onRequestClose={() => {
       if (guideOpen) setGuideOpen(false);
-      else if (!busy) { setPanel(null); setError(''); }
+      else if (!busy) closePanel();
     }}><SafeAreaView style={layout.modal}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={layout.sheet}>
       {guideOpen && <ScrollView contentContainerStyle={layout.content}>
         <OutcomeGuide onClose={() => setGuideOpen(false)} />
       </ScrollView>}
-      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end', borderBottomWidth: 1, borderColor: c.line, backgroundColor: c.card }}><Button quiet compact icon="close" disabled={busy} onPress={() => { setPanel(null); setError(''); }}>{panel?.kind === 'settings' ? 'Done' : 'Cancel'}</Button></Row>}
+      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end', borderBottomWidth: 1, borderColor: c.line, backgroundColor: c.card }}><Button quiet compact icon="close" disabled={busy} onPress={closePanel}>{panel?.kind === 'settings' ? 'Done' : 'Cancel'}</Button></Row>}
       <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? 'closed'} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>{errorBlock}
       {panel?.kind === 'settings' && <Stack>
         <Heading>Settings</Heading>
@@ -584,12 +606,20 @@ function Main() {
         <Button primary disabled={busy} onPress={() => void openMatch(panel.match.id, 'resume')}>Resume match</Button>
         <Button disabled={busy} onPress={() => void openMatch(panel.match.id, 'report')}>Open report</Button>
       </Stack>}
+      {panel?.kind === 'open-unstarted-match' && <Stack>
+        <Heading>Match not started</Heading>
+        <T>{panel.match.players[0].name} vs {panel.match.players[1].name}</T>
+        <Button primary icon="record" disabled={busy} onPress={() => setPanel({ kind: 'start-match', match: panel.match })}>Start match</Button>
+        <Button disabled={busy} onPress={() => { setCurrent(panel.match); setPanel({ kind: 'match-details' }); }}>Match details</Button>
+      </Stack>}
+      {panel?.kind === 'start-match' && <StartMatchForm record={panel.match} busy={busy}
+        onStart={firstServer => void startMatch(panel.match, firstServer)} />}
       {panel?.kind === 'match-details' && record && <MatchDetailsForm
         record={record} busy={busy}
         onSave={details => void mutate(m => {
           const eventId = matchEventKey(m) ?? (details.group ? `event:${randomUUID()}` : undefined);
           return { ...m, ...details, ...(eventId ? { eventId } : {}) };
-        }, () => { setPanel(null); setNotice('Match details saved.'); })}
+        }, () => { closePanel(); setNotice('Match details saved.'); })}
         onDelete={() => void external(async () => {
           await repository.current!.deleteMatch(record.id, record.revision);
           setMatches(rows => rows.filter(match => match.id !== record.id));

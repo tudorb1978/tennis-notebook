@@ -1,12 +1,11 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { replayMatch } from '../domain/history.ts';
 import { strokes } from '../domain/points.ts';
 import type { PlayerStats } from '../domain/points.ts';
 import { hasPointNotes } from '../domain/pointNotes.ts';
 import { pointNoteLabels, pointNoteSummary } from './pointNotes.ts';
-import { pointEndingLabel, pointScoreBefore, pressurePointExplanation, pressurePointGroups, resultLabel, strokeNames, timingLabels } from './report.ts';
+import { pointEndingLabel, pointScoreBefore, pressurePointExplanation, pressurePointGroups, replayMatchForReport, resultLabel, strokeNames, timingLabels } from './report.ts';
 import { performanceCountLabels } from './playerPerformance.ts';
 import type { PlayerPerformanceReport } from './playerPerformance.ts';
 import type { MatchRecord } from '../storage/model.ts';
@@ -239,7 +238,7 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
 export function createMatchPDF(record: MatchRecord, fonts: ReportFonts): Promise<Uint8Array> {
   const title = `${record.players[0].name} vs ${record.players[1].name}`;
   return createReportPDF(title, 'MATCH REPORT', fonts, ({ group, summary, playerTable, pressurePoints, matchNotes, notesSummary, pointNote }) => {
-    const { score, stats, points, pointEntries, hasScoreCorrections, timing } = replayMatch(record.format, record.firstServer, record.events, record.timingStartedAt);
+    const { score, stats, points, pointEntries, hasScoreCorrections, timing } = replayMatchForReport(record);
     const metadata = [record.date, record.group, record.round, record.venue, record.surface, record.courtSetting, record.conditions].filter(Boolean).join(' · ');
     group([[title, 'title', 5], [metadata, 'body', 14]]);
     const status = score.winner !== null ? `${record.players[score.winner].name} wins${score.status === 'retired' ? ' by retirement' : ''}` : score.status === 'abandoned' ? 'Abandoned without a winner' : score.status === 'suspended' ? 'Match paused' : 'In progress';

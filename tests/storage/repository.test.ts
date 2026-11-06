@@ -11,6 +11,7 @@ import type { MatchRecord } from '../../src/storage/model.ts';
 import { presets } from '../../src/domain/presets.ts';
 import { appendEvent, replayMatch } from '../../src/domain/history.ts';
 import { reportCSV, reportHTML } from '../../src/reports/report.ts';
+import { playerPerformance } from '../../src/reports/playerPerformance.ts';
 
 function adapter(db: DatabaseSync): Database {
   return {
@@ -36,6 +37,7 @@ test('SQLite stores and recovers a pending stroke, serve draft, and point after 
     match = await repo.saveMatch({ ...match, draft: { observations: { ...match.draft.observations, firstServe: 'fault', secondServe: 'in' }, pending: { actor: 1, ending: 'unforced-error' }, lets: 1 } }, match.revision);
     db.close(); db = new DatabaseSync(path); repo = new MatchRepository(adapter(db)); await repo.initialize();
     const restored = (await repo.getMatch(match.id))!;
+    assert(restored.firstServer !== null);
     assert.deepEqual(restored.draft.pending, { actor: 1, ending: 'unforced-error' });
     assert.equal(restored.draft.observations.secondServe, 'in');
     assert.equal(await repo.resumeId(), match.id);
@@ -43,9 +45,33 @@ test('SQLite stores and recovers a pending stroke, serve draft, and point after 
     await repo.saveMatch({ ...restored, events, draft: emptyDraft() }, restored.revision);
     db.close(); db = new DatabaseSync(path); repo = new MatchRepository(adapter(db)); await repo.initialize();
     const saved = (await repo.getMatch(match.id))!;
+    assert(saved.firstServer !== null);
     assert.deepEqual(replayMatch(saved.format, saved.firstServer, saved.events).score.current!.points, [1, 0]);
     assert.equal(saved.draft.pending, null);
   } finally { db.close(); await rm(folder, { recursive: true, force: true }); }
+});
+
+test('A saved match has no server or clock until a successful start', async () => {
+  const { db, repo } = await memory();
+  try {
+    const match = await repo.createMatch({ ...fixture(), firstServer: null, timingStartedAt: null }, player);
+    assert.equal(await repo.resumeId(), null);
+    assert.deepEqual(parseBackup(await repo.backup()).matches, [match]);
+    assert.equal(playerPerformance([match], player.name, 'All matches').matchCount, 0);
+
+    db.exec("CREATE TRIGGER fail_start BEFORE INSERT ON preferences BEGIN SELECT RAISE(ABORT, 'resume failure'); END");
+    await assert.rejects(repo.startMatch(match, 1), /resume failure/);
+    assert.deepEqual(await repo.getMatch(match.id), match);
+    db.exec('DROP TRIGGER fail_start');
+
+    const started = await repo.startMatch(match, 1);
+    assert.equal(started.firstServer, 1);
+    assert.equal(started.timingStartedAt, started.updatedAt);
+    assert.notEqual(started.timingStartedAt, match.createdAt);
+    assert.equal(await repo.resumeId(), match.id);
+    await assert.rejects(repo.startMatch(match, 0), /changed elsewhere/);
+    assert.deepEqual(await repo.getMatch(match.id), started);
+  } finally { db.close(); }
 });
 
 test('Revision checks prevent stale saves from overwriting a newer point', async () => {

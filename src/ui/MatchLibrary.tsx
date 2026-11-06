@@ -105,17 +105,18 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
           {group.named && <Button quiet compact icon="chart" disabled={busy} onPress={() => onPerformance(group)}>Event performance</Button>}
         </Row>
         {matches.map(match => {
-          const { score, points } = replayMatch(match.format, match.firstServer, match.events);
-          const active = score.status === 'in-progress' || score.status === 'suspended';
+          const projection = match.firstServer === null ? null : replayMatch(match.format, match.firstServer, match.events);
+          const active = projection?.score.status === 'in-progress' || projection?.score.status === 'suspended';
           const title = `${match.players[0].name} vs ${match.players[1].name}`;
-          const result = resultLabel(score);
-          const status = statusLabels[score.status];
-          return <Button key={match.id} label={`${title}, ${status}, ${result}`} disabled={busy} onPress={() => onOpenMatch(match.id)}
+          const result = projection ? resultLabel(projection.score) : null;
+          const pointCount = projection?.points.length;
+          const status = projection ? statusLabels[projection.score.status] : 'Not started';
+          return <Button key={match.id} label={result ? `${title}, ${status}, ${result}` : `${title}, ${status}`} disabled={busy} onPress={() => onOpenMatch(match.id)}
             style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.bg, paddingHorizontal: 12, paddingVertical: 12 }}>
             <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
               <T bold style={{ fontSize: 16, lineHeight: 22 }}>{title}</T>
-              <Text style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 26, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>{result}</Text>
-              <T small muted>{match.date} · {points.length} {points.length === 1 ? 'recorded point' : 'recorded points'}</T>
+              {result && <Text style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 26, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>{result}</Text>}
+              <T small muted>{match.date}{pointCount === undefined ? '' : ` · ${pointCount} ${pointCount === 1 ? 'recorded point' : 'recorded points'}`}</T>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <View style={{ backgroundColor: active ? c.soft : c.card, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 7 }}>

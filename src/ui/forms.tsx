@@ -25,7 +25,6 @@ export interface SetupValues extends MatchDetails {
   playerName: string;
   opponent: string;
   preset: PresetId;
-  firstServer: Side;
   mode: RecordingMode;
 }
 
@@ -107,23 +106,22 @@ function SetupSectionTitle({ icon, children }: { icon: 'players' | 'court'; chil
   </Row>;
 }
 
-export function SetupForm({ players, event, preferredPlayerId, busy, onStart }: {
+export function SetupForm({ players, event, preferredPlayerId, busy, onSave }: {
   players: PlayerProfile[];
   event: MatchGroup | null;
   preferredPlayerId: string | null;
   busy: boolean;
-  onStart: (values: SetupValues) => void;
+  onSave: (values: SetupValues) => void;
 }) {
   const c = useTheme();
   const [values, setValues] = useState<SetupValues>(() => ({
     playerId: preferredPlayerId ?? event?.latest.players[0].id ?? players[0]?.id ?? '',
-    playerName: '', opponent: '', preset: 'fast4-single', firstServer: 0, mode: 'endings',
+    playerName: '', opponent: '', preset: 'fast4-single', mode: 'endings',
     date: localDate(), group: event?.name ?? '', round: '', venue: event?.latest.venue ?? '',
     surface: event?.latest.surface ?? '', courtSetting: event?.latest.courtSetting ?? '', conditions: event?.latest.conditions ?? '',
   }));
   const [extra, setExtra] = useState(Boolean(event));
   const update = <K extends keyof SetupValues>(key: K, value: SetupValues[K]) => setValues(v => ({ ...v, [key]: value }));
-  const name = (players.find(p => p.id === values.playerId)?.name ?? values.playerName.trim()) || 'Your player';
 
   return <Stack>
     <Card style={{ backgroundColor: c.court, borderColor: c.courtLine, overflow: 'hidden', padding: 18, gap: 5 }}>
@@ -162,8 +160,6 @@ export function SetupForm({ players, event, preferredPlayerId, busy, onStart }: 
       <View style={{ backgroundColor: c.bg, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8 }}>
         <T small muted>{values.preset.startsWith('fast4') ? 'Deciding point at deuce. Set tie-break at 3–3 to 7, two clear.' : 'Advantage games. Sets by two games. Set tie-break at 6–6 to 7, two clear.'}{values.preset !== 'fast4-single' ? ' At one set each, a match tie-break to 10, two clear.' : ''}</T>
       </View>
-      <Divider />
-      <Choices<Side> label="First server" value={values.firstServer} options={[{ value: 0, label: name }, { value: 1, label: values.opponent.trim() || 'Opponent' }]} onChange={v => update('firstServer', v)} disabled={busy} />
     </Card>
     <Card>
       <Choices compact labelIcon="sliders" label="Recording depth" value={values.mode} options={modeOptions} onChange={v => update('mode', v)} disabled={busy} />
@@ -183,7 +179,30 @@ export function SetupForm({ players, event, preferredPlayerId, busy, onStart }: 
       </Button>
       {extra && <MatchContextFields values={values} update={details => setValues(previous => ({ ...previous, ...details }))} />}
     </Card>
-    <Button primary icon="record" testID="start-match" disabled={busy} onPress={() => onStart(values)}>{busy ? 'Saving…' : 'Start recording'}</Button>
+    <Button primary testID="save-match" disabled={busy} onPress={() => onSave(values)}>{busy ? 'Saving…' : 'Save match'}</Button>
+  </Stack>;
+}
+
+export function StartMatchForm({ record, busy, onStart }: { record: MatchRecord; busy: boolean; onStart: (firstServer: Side) => void }) {
+  const [firstServer, setFirstServer] = useState<Side | null>(null);
+  const c = useTheme();
+  return <Stack>
+    <Heading>Who serves first?</Heading>
+    <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8 }}>
+      {([0, 1] as const).map(side => {
+        const selected = firstServer === side;
+        const player = record.players[side];
+        return <Button key={side} toggle selected={selected} disabled={busy} testID={`first-server-${side}`} label={player.name}
+          style={{ flex: 1, minWidth: 0 }} onPress={() => setFirstServer(side)}>
+          <View style={{ alignItems: 'center', gap: 3 }}>
+            <T bold style={{ color: selected ? c.on : c.ink, textAlign: 'center' }}>{player.name}</T>
+            <T small style={{ color: selected ? c.on : c.sub }}>{side === 0 ? 'Your player' : 'Opponent'}</T>
+          </View>
+        </Button>;
+      })}
+    </View>
+    <Button primary icon="record" testID="start-match" disabled={busy || firstServer === null}
+      onPress={() => { if (firstServer !== null) onStart(firstServer); }}>Start match</Button>
   </Stack>;
 }
 
