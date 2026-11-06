@@ -21,12 +21,13 @@ import type { MatchDraft, MatchRecord, PlayerProfile, UnstartedMatchRecord } fro
 import { endingNames, pointEndingLabel, pointScoreBefore, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
 import { pointNoteLabels, pointNoteSummary } from './src/reports/pointNotes.ts';
 import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
-import { AppTheme, Button, Card, Choices, Eyebrow, Heading, Notice, PlayerBadge, playerBadgeColors, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
+import { AppTheme, Button, Card, Eyebrow, Heading, Notice, PlayerBadge, playerBadgeColors, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
 import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, MatchNotesEditor, modeOptions, PointEditor, SetupForm, StartMatchForm } from './src/ui/forms.tsx';
 import type { SetupValues } from './src/ui/forms.tsx';
 import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
 import { OutcomeGuide, OutcomeHelpButton } from './src/ui/OutcomeGuide.tsx';
 import { Scoreboard } from './src/ui/Scoreboard.tsx';
+import { ServeRecordingCard } from './src/ui/ServeRecordingCard.tsx';
 import { MatchComparison, PressurePoints, StatsTable } from './src/ui/Stats.tsx';
 import { PlayerPerformance } from './src/ui/PlayerPerformance.tsx';
 import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
@@ -342,44 +343,16 @@ function Main() {
         </View>
       </Card>;
     }
-    const firstServePending = obs.firstServe === 'unknown';
-    const secondServePending = obs.firstServe === 'fault' && obs.secondServe === 'unknown';
     const missedReturner = record.mode === 'detailed' && obs.returnResult === 'error' && pointServer !== undefined
       ? other(pointServer)
       : null;
     return <Stack>
-      {record.mode === 'detailed' && <Card style={{ paddingHorizontal: 8, paddingVertical: 8, gap: 6 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          {firstServePending || secondServePending
-            ? <T bold>{firstServePending ? 'First serve' : 'Second serve'}</T>
-            : <View style={{ flex: 1, minWidth: 90 }}>
-              <T bold>Serve recorded</T>
-              <T small muted>{obs.secondServe === 'in' ? 'Second serve in' : 'First serve in'}</T>
-            </View>}
-          <View style={{ flexDirection: 'row', gap: 4 }}>
-            {(firstServePending || secondServePending) && <Button quiet compact disabled={busy} onPress={() => void mutate(m => ({ ...m, draft: { ...m.draft, lets: m.draft.lets + 1 } }))}>Let{record.draft.lets ? ` · ${record.draft.lets}` : ''}</Button>}
-            {!firstServePending && <Button quiet compact disabled={busy} onPress={() => void saveDraft({ ...obs, firstServe: 'unknown', secondServe: 'unknown', returnStroke: 'unknown', returnResult: 'unknown' })}>Clear serve</Button>}
-            {!firstServePending && !secondServePending && canRecordAce && <Button compact disabled={busy} onPress={() => void saveServiceEnding('ace')}>Ace</Button>}
-          </View>
-        </Row>
-        {firstServePending || secondServePending ? <View style={layout.two}>
-          <Button style={layout.cell} testID={firstServePending ? 'first-in' : 'second-in'} disabled={busy} onPress={() => void saveDraft(firstServePending ? { ...obs, firstServe: 'in' } : { ...obs, secondServe: 'in' })}>In</Button>
-          {firstServePending
-            ? <Button style={layout.cell} testID="first-fault" disabled={busy} onPress={() => void saveDraft({ ...obs, firstServe: 'fault' })}>Fault</Button>
-            : <Button style={layout.cell} disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
-          {aceButton}
-        </View> : <>
-          <Choices compact label="Return result" value={obs.returnResult}
-            options={[{ value: 'in', label: 'In' }, { value: 'error', label: 'Missed' }, { value: 'unknown', label: 'Not seen' }]}
-            disabled={busy} onChange={returnResult => void saveDraft({
-              ...obs, returnResult, returnStroke: returnResult === 'unknown' ? 'unknown' : obs.returnStroke,
-            })} />
-          {obs.returnResult !== 'unknown' && <Choices compact label="Return stroke" value={obs.returnStroke}
-            options={[{ value: 'forehand', label: 'Forehand' }, { value: 'backhand', label: 'Backhand' }, { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Not seen' }]}
-            disabled={busy} onChange={returnStroke => void saveDraft({ ...obs, returnStroke })} />}
-        </>}
-      </Card>}
-      {missedReturner !== null ? <Card style={{ padding: 10, gap: 8 }}>
+      {record.mode === 'detailed' && <ServeRecordingCard
+        observations={obs} lets={record.draft.lets} busy={busy} canRecordAce={canRecordAce}
+        onObservations={saveDraft} onEnding={saveServiceEnding}
+        onLet={() => void mutate(m => ({ ...m, draft: { ...m.draft, lets: m.draft.lets + 1 } }))}
+      />}
+      {missedReturner !== null ? <Card style={{ padding: 12, gap: 8 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <PlayerBadge side={missedReturner} style={{ alignSelf: 'center' }}>{`${record.players[missedReturner].name} missed the return`}</PlayerBadge>
           <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
@@ -387,12 +360,13 @@ function Main() {
         <View style={layout.two}>
           {(['forced-error', 'unforced-error'] as const).map(ending => <Button
             key={ending}
+            compact
             style={layout.cell}
             disabled={busy}
             onPress={() => void savePoint({ type: 'ending', actor: missedReturner, ending, stroke: obs.returnStroke, observations: obs })}
           >{endingNames[ending]}</Button>)}
         </View>
-        <Button style={{ backgroundColor: c.bg }} disabled={busy}
+        <Button compact style={{ backgroundColor: c.bg }} disabled={busy}
           onPress={() => void savePoint({ type: 'winner-only', winner: other(missedReturner), observations: obs })}>Not sure</Button>
       </Card> : <Card style={{ padding: 10, gap: 8 }}>
         <Row>

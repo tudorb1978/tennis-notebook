@@ -200,7 +200,7 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await page.screenshot({path:path.join(output,'tennis-android-recording.png'),fullPage:true});
     console.log('PASS Serve observations and an unfinished point survive closing/reopening the app');
 
-    const serveButton=(stage,name)=>page.getByText(stage,{exact:true}).locator('../..').getByRole('button',{name,exact:true});
+    const serveButton=(stage,name)=>page.getByText(stage,{exact:true}).locator('../../..').getByRole('button',{name,exact:true});
     await expect(button('Ace')).toHaveCount(1);await expect(button('Double fault')).toHaveCount(0);
     await serveButton('First serve','Ace').click();await points('0','15');
     await page.getByTestId('first-fault').click();await expect(button('Ace')).toHaveCount(1);await expect(button('Double fault')).toHaveCount(1);
