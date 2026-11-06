@@ -10,7 +10,7 @@ import type { MatchScore, ScoreCorrection, Side } from '../domain/scoring.ts';
 import { matchNotesMaxLength } from '../storage/model.ts';
 import type { MatchRecord, PlayerProfile, RecordingMode } from '../storage/model.ts';
 import { endingNames, strokeNames } from '../reports/report.ts';
-import { Button, Card, Choices, Divider, Eyebrow, Field, Heading, Notice, Row, Stack, T, useTheme } from './kit.tsx';
+import { Button, Card, Choices, Divider, Eyebrow, Field, Heading, Notice, playerBadgeColors, Row, Stack, T, useTheme } from './kit.tsx';
 import { CourtLines } from './CourtLines.tsx';
 import { Icon } from './Icon.tsx';
 import { ServeObservations } from './ObservationForm.tsx';
@@ -192,11 +192,13 @@ export function StartMatchForm({ record, busy, onStart }: { record: MatchRecord;
       {([0, 1] as const).map(side => {
         const selected = firstServer === side;
         const player = record.players[side];
+        const { backgroundColor, borderColor, ink } = playerBadgeColors(c, side);
         return <Button key={side} toggle selected={selected} disabled={busy} testID={`first-server-${side}`} label={player.name}
-          style={{ flex: 1, minWidth: 0 }} onPress={() => setFirstServer(side)}>
+          style={{ flex: 1, minWidth: 0, backgroundColor, borderWidth: 2, borderColor: selected ? ink : borderColor }}
+          onPress={() => setFirstServer(side)}>
           <View style={{ alignItems: 'center', gap: 3 }}>
-            <T bold style={{ color: selected ? c.on : c.ink, textAlign: 'center' }}>{player.name}</T>
-            <T small style={{ color: selected ? c.on : c.sub }}>{side === 0 ? 'Your player' : 'Opponent'}</T>
+            <T bold style={{ color: ink, textAlign: 'center' }}>{player.name}</T>
+            <T small style={{ color: side === 0 ? ink : c.sub }}>{side === 0 ? 'Your player' : 'Opponent'}</T>
           </View>
         </Button>;
       })}
