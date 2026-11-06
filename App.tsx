@@ -366,7 +366,7 @@ function Main() {
             onPress={() => void savePoint({ type: 'ending', actor: missedReturner, ending, stroke: obs.returnStroke, observations: obs })}
           >{endingNames[ending]}</Button>)}
         </View>
-        <Button compact style={{ backgroundColor: c.bg }} disabled={busy}
+        <Button compact label="Not sure which error" style={{ backgroundColor: c.bg }} disabled={busy}
           onPress={() => void savePoint({ type: 'winner-only', winner: other(missedReturner), observations: obs })}>Not sure</Button>
       </Card> : <Card style={{ padding: 10, gap: 8 }}>
         <Row>

@@ -8,7 +8,7 @@ import { stagePointLabels } from '../domain/scoring.ts';
 import type { MatchScore, Side, StageResult } from '../domain/scoring.ts';
 import type { MatchRecord } from '../storage/model.ts';
 
-export const strokeNames = { forehand: 'Forehand', backhand: 'Backhand', volley: 'Volley', overhead: 'Overhead', serve: 'Serve', other: 'Other', unknown: 'Not seen' };
+export const strokeNames = { forehand: 'Forehand', backhand: 'Backhand', volley: 'Volley', overhead: 'Overhead', serve: 'Serve', other: 'Other', unknown: 'Not sure' };
 export const endingNames = { winner: 'Winner', 'unforced-error': 'Unforced error', 'forced-error': 'Forced error', ace: 'Ace', 'double-fault': 'Double fault', unknown: 'Outcome only' };
 export const pressurePointExplanation = 'Counts use recorded points. A chance to win both the set and the match counts in both categories.';
 export function pressurePointGroups(players: readonly PlayerStats[]) {

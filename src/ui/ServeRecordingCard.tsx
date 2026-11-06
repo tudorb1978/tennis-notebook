@@ -8,13 +8,13 @@ const optionButton = { flex: 1, minWidth: 0, paddingHorizontal: 6 };
 const resultOptions = [
   { value: 'in', label: 'In' },
   { value: 'error', label: 'Missed' },
-  { value: 'unknown', label: 'Not seen' },
+  { value: 'unknown', label: 'Not sure' },
 ] as const;
 const strokeOptions = [
   { value: 'forehand', label: 'Forehand' },
   { value: 'backhand', label: 'Backhand' },
   { value: 'other', label: 'Other' },
-  { value: 'unknown', label: 'Not seen' },
+  { value: 'unknown', label: 'Not sure' },
 ] as const;
 
 function ReturnChoices<T extends string>({ label, value, options, onChange, busy, split = false }: {

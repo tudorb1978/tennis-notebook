@@ -10,10 +10,10 @@ import { Button, Card, Choices, Field, Heading, Row, Stack, T, Toggle, useTheme 
 
 export function ServeObservations({ value, onChange }: { value: PointObservations; onChange: (value: PointObservations) => void }) {
   return <Stack>
-    <Choices label="First serve" value={value.firstServe} options={[{ value: 'in', label: 'In' }, { value: 'fault', label: 'Fault' }, { value: 'unknown', label: 'Not seen' }]} onChange={firstServe => onChange({ ...value, firstServe, secondServe: firstServe === 'fault' ? value.secondServe : 'unknown' })} />
-    {value.firstServe === 'fault' && <Choices label="Second serve" value={value.secondServe} options={[{ value: 'in', label: 'In' }, { value: 'fault', label: 'Fault' }, { value: 'unknown', label: 'Not seen' }]} onChange={secondServe => onChange({ ...value, secondServe })} />}
-    <Choices label="Return result" value={value.returnResult} options={[{ value: 'in', label: 'In' }, { value: 'error', label: 'Missed' }, { value: 'unknown', label: 'Not seen' }]} onChange={returnResult => onChange({ ...value, returnResult })} />
-    <Choices label="Return stroke" value={value.returnStroke} options={[{ value: 'forehand', label: 'Forehand' }, { value: 'backhand', label: 'Backhand' }, { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Not seen' }]} onChange={returnStroke => onChange({ ...value, returnStroke })} />
+    <Choices label="First serve" value={value.firstServe} options={[{ value: 'in', label: 'In' }, { value: 'fault', label: 'Fault' }, { value: 'unknown', label: 'Not sure' }]} onChange={firstServe => onChange({ ...value, firstServe, secondServe: firstServe === 'fault' ? value.secondServe : 'unknown' })} />
+    {value.firstServe === 'fault' && <Choices label="Second serve" value={value.secondServe} options={[{ value: 'in', label: 'In' }, { value: 'fault', label: 'Fault' }, { value: 'unknown', label: 'Not sure' }]} onChange={secondServe => onChange({ ...value, secondServe })} />}
+    <Choices label="Return result" value={value.returnResult} options={[{ value: 'in', label: 'In' }, { value: 'error', label: 'Missed' }, { value: 'unknown', label: 'Not sure' }]} onChange={returnResult => onChange({ ...value, returnResult })} />
+    <Choices label="Return stroke" value={value.returnStroke} options={[{ value: 'forehand', label: 'Forehand' }, { value: 'backhand', label: 'Backhand' }, { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Not sure' }]} onChange={returnStroke => onChange({ ...value, returnStroke })} />
   </Stack>;
 }
 

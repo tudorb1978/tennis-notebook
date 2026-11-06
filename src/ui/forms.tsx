@@ -227,7 +227,7 @@ export function PointEditor({ record, input, server, busy, onSave, onOutcomeHelp
   const [error, setError] = useState('');
   const canPickServe = actor === actualServer && (ending === 'winner' || !serveWasIn(observations));
   const save = () => {
-    if (type === 'ending' && !stroke) { setError('Choose the stroke, or explicitly choose Not seen.'); return; }
+    if (type === 'ending' && !stroke) { setError('Choose the stroke, or explicitly choose Not sure.'); return; }
     const next: PointInput = type === 'winner-only' ? { type, winner: actor, observations } : type === 'ending' ? { type, actor, ending, stroke: stroke as Stroke, observations } : { type, actor, observations };
     const issue = serveEndingIssue(next);
     if (issue) { setError(issue); return; }
