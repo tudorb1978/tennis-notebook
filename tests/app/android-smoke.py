@@ -86,7 +86,11 @@ try:
     tap(resource='new-match')
     fill('new-player-name', 'Alex')
     fill('opponent-name', 'Jamie')
-    tap(resource='start-match', scroll=True)
+    tap(resource='save-match', scroll=True)
+    tap(label='Alex vs Jamie, Not started')
+    tap(text='Start match')
+    tap(resource='first-server-0')
+    tap(resource='start-match')
     tap(resource='point-winner-0')
     tap(resource='ending-0-winner')
     wait_for(text='Which stroke?')
@@ -109,8 +113,8 @@ try:
     print('PASS Cold start without network restores the score and pending stroke; recording continues', flush=True)
 
     tap(label='Add notes', scroll=True)
-    tap(text='Notes', scroll=True)
-    # Notes is the only multiline editable field in this sheet.
+    wait_for(text='Point notes')
+    # Notes is the only editable field in this sheet.
     editable = [n for n in nodes() if n.attrib.get('class') == 'android.widget.EditText']
     assert editable, 'No editable note field'
     box = list(map(int, re.findall(r'\d+', editable[-1].attrib['bounds'])))
@@ -139,7 +143,9 @@ try:
     print('PASS Detailed serve recording works natively and Undo stays available in the bottom bar', flush=True)
 
     tap(resource='tab-report')
-    tap(text='PDF report', scroll=True)
+    tap(resource='match-pdf-export', scroll=True)
+    wait_for(text='Export match PDF')
+    tap(resource='match-pdf-combined')
     for _ in range(14):
         if any('intentresolver' in n.attrib.get('package', '') or 'Chooser' in n.attrib.get('class', '') or 'Sharing' in n.attrib.get('text', '') for n in nodes()):
             break
@@ -147,7 +153,8 @@ try:
     else:
         raise AssertionError('Native PDF sharing chooser did not open')
     run('shell', 'input', 'keyevent', '4')
-    print('PASS Native PDF generation opens Android’s share chooser without publishing or sending', flush=True)
+    wait_for(resource='match-pdf-export')
+    print('PASS Combined PDF opens Android’s share chooser without publishing or sending', flush=True)
     capture('tennis-native-report.png')
 except Exception:
     try:

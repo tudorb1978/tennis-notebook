@@ -28,11 +28,12 @@ export function pressurePointRows(players: readonly PlayerStats[]) {
     { label: `${label} · Faced`, values: values.map(value => value.faced) },
   ]);
 }
-export function pointScoreBefore({ context }: RecordedPoint): string {
+export function pointScoreBefore({ context }: RecordedPoint, compact = false): string {
   const points = stagePointLabels(context).join('–');
-  if (context.phase === 'match-tie-break') return `Before point · Match tie-break ${points}`;
+  if (context.phase === 'match-tie-break') return `${compact ? '' : 'Before point · '}Match tie-break ${points}`;
   const pointLabel = context.phase === 'set-tie-break' ? 'Tie-break' : 'Points';
-  return `Before point · Set ${context.stage + 1} · Games ${context.games.join('–')} · ${pointLabel} ${points}`;
+  const score = `Games ${context.games.join('–')} · ${pointLabel} ${points}`;
+  return compact ? score : `Before point · Set ${context.stage + 1} · ${score}`;
 }
 export function pointEndingLabel(point: RecordedPoint, names: readonly [string, string]): string {
   if (point.actor === null) return 'Ending not recorded';

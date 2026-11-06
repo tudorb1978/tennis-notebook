@@ -339,8 +339,16 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await page.screenshot({path:path.join(output,'tennis-android-report.png'),fullPage:true});
     console.log('PASS Set tie-break, second set, deciding match tie-break, and two-clear completion');
 
-    const pdfDownload=page.waitForEvent('download');await button('PDF report').click();const pdf=await pdfDownload;const pdfPath=path.join(output,'tennis-app-report.pdf');await pdf.saveAs(pdfPath);const pdfBytes=fs.readFileSync(pdfPath);assert.equal(pdfBytes.subarray(0,4).toString(),'%PDF');assert.ok(pdfBytes.length>1000);
-    console.log('PASS Downloadable PDF is generated from local records with its embedded font');
+    const pdfHeading=page.getByRole('heading',{name:'Export match PDF',exact:true});
+    for(const [variant,choice] of [['summary',/^Stats summary\./],['point-by-point',/^Point-by-point\./],['combined',/^Combined report\./]]){
+      await button('PDF report').click();await expect(pdfHeading).toBeVisible();
+      const [pdf]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:choice}).click()]);
+      assert.ok(pdf.suggestedFilename().endsWith(`-${variant}.pdf`));
+      const pdfPath=path.join(output,`tennis-app-report-${variant}.pdf`);await pdf.saveAs(pdfPath);
+      const pdfBytes=fs.readFileSync(pdfPath);assert.equal(pdfBytes.subarray(0,4).toString(),'%PDF');assert.ok(pdfBytes.length>1000);
+      await expect(pdfHeading).toHaveCount(0);
+    }
+    console.log('PASS All three report formats generate downloadable PDFs from local records');
 
     const csvDownload=page.waitForEvent('download');await button('Export points CSV').click();const csv=await csvDownload;await csv.saveAs(path.join(output,'tennis-points-test.csv'));
     const exportedPoints=fs.readFileSync(path.join(output,'tennis-points-test.csv'),'utf8');

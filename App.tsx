@@ -21,6 +21,7 @@ import type { MatchDraft, MatchRecord, PlayerProfile, UnstartedMatchRecord } fro
 import { endingNames, pointEndingLabel, pointScoreBefore, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
 import { pointNoteLabels, pointNoteSummary } from './src/reports/pointNotes.ts';
 import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
+import type { MatchPDFVariant } from './src/reports/pdf.ts';
 import { AppTheme, Button, Card, Eyebrow, Heading, Notice, PlayerBadge, playerBadgeColors, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
 import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, MatchNotesEditor, modeOptions, PointEditor, SetupForm, StartMatchForm } from './src/ui/forms.tsx';
 import type { SetupValues } from './src/ui/forms.tsx';
@@ -32,6 +33,7 @@ import { MatchComparison, PressurePoints, StatsTable } from './src/ui/Stats.tsx'
 import { PlayerPerformance } from './src/ui/PlayerPerformance.tsx';
 import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
 import { Icon } from './src/ui/Icon.tsx';
+import type { IconName } from './src/ui/Icon.tsx';
 
 type Screen = 'loading' | 'home' | 'setup' | 'match' | 'player-report';
 type Tab = 'record' | 'history' | 'report';
@@ -40,8 +42,13 @@ const matchTabs = [
   { value: 'history', label: 'History', icon: 'history' },
   { value: 'report', label: 'Report', icon: 'report' },
 ] as const;
+const matchPDFOptions: readonly { variant: MatchPDFVariant; title: string; description: string; icon: IconName }[] = [
+  { variant: 'summary', title: 'Stats summary', description: 'A short report with match stats and match notes.', icon: 'chart' },
+  { variant: 'point-by-point', title: 'Point-by-point', description: 'The score, shots and observations for each point, with stats after each set.', icon: 'history' },
+  { variant: 'combined', title: 'Combined report', description: 'The stats summary and full point-by-point report in one PDF.', icon: 'report' },
+];
 type PointPanel = 'edit-point' | 'point-notes' | 'delete-point';
-type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'open-unstarted-match' | 'start-match'; match: UnstartedMatchRecord } | { kind: 'settings' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
+type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'export-match-pdf' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'open-unstarted-match' | 'start-match'; match: UnstartedMatchRecord } | { kind: 'settings' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
 function AwakeWhileRecording() { useKeepAwake('tennis-recording'); return null; }
 function Main() {
   const c = useTheme(); const layout = useLayout();
@@ -444,7 +451,7 @@ function Main() {
         {context ? <T small muted>{context}</T> : null}
       </Card>
       <Row style={{ alignItems: 'stretch' }}>
-        <Button primary icon="report" disabled={busy} onPress={() => void external(async () => { await sharePDF(record); })}>PDF report</Button>
+        <Button primary icon="report" testID="match-pdf-export" disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'export-match-pdf' }); }}>PDF report</Button>
         <Button icon="download" disabled={busy} onPress={() => void external(async () => { await shareText(`tennis-match-${record.id}.csv`, reportCSV(record), 'text/csv'); })}>Export points CSV</Button>
       </Row>
       <Card style={{ gap: 5 }}>
@@ -638,6 +645,30 @@ function Main() {
       {panel?.kind === 'match-notes' && record && <MatchNotesEditor notes={record.matchNotes ?? ''} busy={busy}
         onSave={matchNotes => void mutate(m => ({ ...m, matchNotes }), () => { setPanel(null); setNotice('Match notes saved.'); })}
       />}
+      {panel?.kind === 'export-match-pdf' && record && <Stack>
+        <View style={{ gap: 4 }}>
+          <Heading>Export match PDF</Heading>
+          <T small muted>{Platform.OS === 'web' ? 'Choose a report to download.' : 'Choose a report to save or share.'}</T>
+        </View>
+        <View style={{ gap: 8 }}>
+          {matchPDFOptions.map(({ variant, title, description, icon }) => <Button
+            key={variant} testID={`match-pdf-${variant}`} label={`${title}. ${description}`} disabled={busy}
+            onPress={() => void external(async () => {
+              await sharePDF(record, variant);
+              setPanel(null);
+            })}>
+            <Row style={{ flexWrap: 'nowrap', gap: 12 }}>
+              <View style={{ padding: 9, borderRadius: 9, backgroundColor: c.soft }}><Icon name={icon} color={c.accent} /></View>
+              <View style={{ flex: 1, minWidth: 0 }}><T bold>{title}</T><T small muted>{description}</T></View>
+              <Icon name={Platform.OS === 'web' ? 'download' : 'chevron-right'} color={c.sub} size={16} />
+            </Row>
+          </Button>)}
+        </View>
+        {busy && <Row style={{ justifyContent: 'center' }}>
+          <ActivityIndicator color={c.accent} />
+          <View accessibilityLiveRegion="polite"><T small muted>Preparing PDF…</T></View>
+        </Row>}
+      </Stack>}
       {panel?.kind === 'recording-mode' && record && <Stack>
         <Heading>Recording mode</Heading>
         {modeOptions.map(({ value, label }) => <Button

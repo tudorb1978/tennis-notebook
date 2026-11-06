@@ -3,16 +3,18 @@ import type { PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { strokes } from '../domain/points.ts';
 import type { PlayerStats } from '../domain/points.ts';
-import { hasPointNotes } from '../domain/pointNotes.ts';
-import { pointNoteLabels, pointNoteSummary } from './pointNotes.ts';
-import { pointEndingLabel, pointScoreBefore, pressurePointExplanation, pressurePointGroups, replayMatchForReport, resultParts, strokeNames, timingLabels } from './report.ts';
+import { pointNoteSummary } from './pointNotes.ts';
+import { buildPointByPoint } from './pointByPoint.ts';
+import { pressurePointExplanation, pressurePointGroups, replayMatchForReport, resultParts, strokeNames, timingLabels } from './report.ts';
 import type { ResultPart } from './report.ts';
 import { performanceCountLabels } from './playerPerformance.ts';
 import type { PlayerPerformanceReport } from './playerPerformance.ts';
 import type { MatchRecord } from '../storage/model.ts';
 
 export interface ReportFonts { regular: Uint8Array; bold: Uint8Array }
-type TextRole = 'title' | 'lead' | 'heading' | 'subheading' | 'body' | 'caption' | 'tableHeader' | 'tableBody' | 'tableTotal';
+export type MatchPDFVariant = 'summary' | 'point-by-point' | 'combined';
+type TextRole = 'title' | 'lead' | 'heading' | 'subheading' | 'body' | 'caption' | 'tableHeader' | 'tableBody' | 'tableTotal'
+  | 'positive' | 'negative' | 'rally';
 type TextBlock = readonly [text: string, role: TextRole, gapAfter?: number];
 type RowTone = 'header' | 'plain' | 'stripe' | 'total';
 
@@ -20,10 +22,23 @@ interface ReportWriter {
   group: (blocks: readonly TextBlock[]) => void;
   summary: (lead: string | readonly ResultPart[], details: readonly string[]) => void;
   playerTable: (name: string, stats: PlayerStats) => void;
+  statsTable: (title: string, names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats], includeStrokeTotals: boolean) => void;
+  strokeTable: (names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats]) => void;
   pressurePoints: (names: readonly string[], stats: readonly PlayerStats[]) => void;
   matchNotes: (notes: string) => void;
   notesSummary: (summary: ReturnType<typeof pointNoteSummary>) => void;
   pointNote: (details: readonly TextBlock[], notes: string, intro?: readonly TextBlock[]) => void;
+}
+
+function observedRate(inPlay: number, observed: number) {
+  return observed ? `${Math.round(inPlay / observed * 100)}% (${inPlay}/${observed})` : 'Not recorded';
+}
+
+function strokeTotals(player: PlayerStats) {
+  return strokes.reduce<[number, number, number]>(([winners, unforced, forced], stroke) => {
+    const counts = player.byStroke[stroke];
+    return [winners + counts.winners, unforced + counts.unforcedErrors, forced + counts.forcedErrors];
+  }, [0, 0, 0]);
 }
 
 /** Generate on-device without a WebView, remote service, or system print renderer. */
@@ -52,6 +67,9 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
     tableHeader: { font: bold, color: white, size: 9, leading: 13 },
     tableBody: { font: regular, color: ink, size: 9, leading: 13 },
     tableTotal: { font: bold, color: ink, size: 9, leading: 13 },
+    positive: { font: bold, color: rgb(.13, .36, .20), size: 9, leading: 13 },
+    negative: { font: bold, color: rgb(.58, .21, .16), size: 9, leading: 13 },
+    rally: { font: bold, color: rgb(.15, .32, .56), size: 9, leading: 13 },
   };
   const width = 595.28, height = 841.89, left = 44, contentWidth = width - left * 2;
   const top = height - 72, bottom = 52;
@@ -192,7 +210,7 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
   function playerTable(name: string, player: PlayerStats) {
     const title = layout([name, 'heading', 7]);
     const totals = layout([`Points won ${player.pointsWon}  ·  Aces ${player.aces}  ·  Double faults ${player.doubleFaults}`, 'subheading', 2]);
-    const serving = layout([`First serves in ${player.firstServesIn}/${player.firstServesObserved}  ·  Second serves in ${player.secondServesIn}/${player.secondServesObserved}  ·  Returns in ${player.returnsIn}/${player.returnsObserved} (observed)`, 'caption', 16]);
+    const serving = layout([`First serves in ${observedRate(player.firstServesIn, player.firstServesObserved)} · Second serves in ${observedRate(player.secondServesIn, player.secondServesObserved)} · Returns in ${observedRate(player.returnsIn, player.returnsObserved)}`, 'caption', 16]);
     const numericWidth = (contentWidth - 173) / 3;
     const widths = [173, numericWidth, numericWidth, numericWidth];
     const rows = [tableRow(['Stroke', 'Winners', 'Unforced errors', 'Forced errors'], widths, 'header')];
@@ -210,6 +228,44 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
     y -= 8;
     draw(totals);
     draw(serving);
+  }
+  function comparisonTable(heading: string, firstColumn: string, names: readonly [string, string], rows: readonly (readonly (string | number)[])[], detail?: string) {
+    const title = layout([heading, 'heading', 5]);
+    const caption = detail ? layout([detail, 'caption', 7]) : null;
+    const widths = [150, (contentWidth - 150) / 2, (contentWidth - 150) / 2];
+    const table = [tableRow([firstColumn, ...names], widths, 'header'),
+      ...rows.map((row, index) => tableRow(row, widths, index % 2 ? 'stripe' : 'plain'))];
+    ensure(title.height + (caption?.height ?? 0) + table.reduce((sum, row) => sum + row.height, 0));
+    draw(title);
+    if (caption) draw(caption);
+    table.forEach(drawTableRow);
+    y -= 13;
+  }
+  function statsTable(title: string, names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats], includeStrokeTotals: boolean) {
+    const rows: (string | number)[][] = [
+      ['Points won', ...stats.map(player => player.pointsWon)],
+      ['Aces', ...stats.map(player => player.aces)],
+      ['Double faults', ...stats.map(player => player.doubleFaults)],
+      ['First serves in', ...stats.map(player => observedRate(player.firstServesIn, player.firstServesObserved))],
+      ['Second serves in', ...stats.map(player => observedRate(player.secondServesIn, player.secondServesObserved))],
+      ['Returns in', ...stats.map(player => observedRate(player.returnsIn, player.returnsObserved))],
+    ];
+    if (includeStrokeTotals) {
+      const totals = stats.map(strokeTotals);
+      ['Winners', 'Unforced errors', 'Forced errors'].forEach((label, index) => rows.push([label, ...totals.map(counts => counts[index] ?? 0)]));
+    }
+    comparisonTable(title, 'Metric', names, rows);
+  }
+  function strokeTable(names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats]) {
+    const rows = strokes.filter(stroke => stats.some(player =>
+      Object.values(player.byStroke[stroke]).some(Boolean))).map(stroke => [
+      strokeNames[stroke], ...stats.map(player => {
+        const { winners, unforcedErrors, forcedErrors } = player.byStroke[stroke];
+        return `${winners} / ${unforcedErrors} / ${forcedErrors}`;
+      }),
+    ]);
+    rows.push(['Total', ...stats.map(player => strokeTotals(player).join(' / '))]);
+    comparisonTable('Shot breakdown', 'Stroke', names, rows, 'Each cell shows winners / unforced errors / forced errors.');
   }
   function pressurePoints(names: readonly string[], stats: readonly PlayerStats[]) {
     const data = pressurePointGroups(stats);
@@ -249,21 +305,23 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
   function pointNote(details: readonly TextBlock[], notes: string, intro: readonly TextBlock[] = []) {
     const introduction = intro.map(part => layout(part));
     const blocks = details.map(part => layout(part));
-    const body = notes ? layout([notes, 'body', 4]) : null;
-    ensure([...introduction, ...blocks].reduce((space, block) => space + block.height, 9 + (body?.leading ?? 0)));
+    const body = notes ? layout([notes, 'body']) : null;
+    const detailsHeight = [...introduction, ...blocks].reduce((space, block) => space + block.height, 5);
+    const pointHeight = detailsHeight + (body?.height ?? 0);
+    ensure(pointHeight <= top - bottom ? pointHeight : detailsHeight + (body?.leading ?? 0));
     introduction.forEach(block => draw(block));
     rule(page, y);
-    y -= 9;
+    y -= 5;
     blocks.forEach(block => draw(block));
     if (body) draw(body);
-    y -= 9;
+    y -= 5;
   }
 
   doc.setTitle(title);
   doc.setCreator('Tennis Notebook');
   doc.setProducer('Tennis Notebook');
   newPage();
-  render({ group, summary, playerTable, pressurePoints, matchNotes, notesSummary, pointNote });
+  render({ group, summary, playerTable, statsTable, strokeTable, pressurePoints, matchNotes, notesSummary, pointNote });
   for (const [index, item] of doc.getPages().entries()) {
     const number = `Page ${index + 1} of ${doc.getPageCount()}`;
     rule(item, 39);
@@ -272,38 +330,70 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
   return doc.save();
 }
 
-export function createMatchPDF(record: MatchRecord, fonts: ReportFonts): Promise<Uint8Array> {
+const reportKinds: Record<MatchPDFVariant, string> = {
+  summary: 'MATCH STATS SUMMARY',
+  'point-by-point': 'POINT-BY-POINT REPORT',
+  combined: 'COMBINED MATCH REPORT',
+};
+
+export function createMatchPDF(record: MatchRecord, fonts: ReportFonts, variant: MatchPDFVariant = 'combined'): Promise<Uint8Array> {
   const title = `${record.players[0].name} vs ${record.players[1].name}`;
-  return createReportPDF(title, 'MATCH REPORT', fonts, ({ group, summary, playerTable, pressurePoints, matchNotes, notesSummary, pointNote }) => {
-    const { score, stats, points, pointEntries, hasScoreCorrections, timing } = replayMatchForReport(record);
+  return createReportPDF(title, reportKinds[variant], fonts, ({ group, summary, statsTable, strokeTable, pressurePoints, matchNotes, notesSummary, pointNote }) => {
+    const projection = replayMatchForReport(record);
+    const { score, stats, points, hasScoreCorrections, timing } = projection;
+    const names = [record.players[0].name, record.players[1].name] as const;
     const metadata = [record.date, record.group, record.round, record.venue, record.surface, record.courtSetting, record.conditions].filter(Boolean).join(' · ');
     group([[title, 'title', 5], [metadata, 'body', 14]]);
     const status = score.winner !== null ? `${record.players[score.winner].name} wins${score.status === 'retired' ? ' by retirement' : ''}` : score.status === 'abandoned' ? 'Abandoned without a winner' : score.status === 'suspended' ? 'Match paused' : 'In progress';
     const times = timingLabels(timing);
     summary(resultParts(score), [`${status} · ${record.format.name}`, ...(times.length ? [times.join(' · ')] : [])]);
-    for (const side of [0, 1] as const) playerTable(record.players[side].name, stats.players[side]);
-    const coverage: TextBlock[] = [[`Aces count as serve winners. Double faults count as unforced serve errors. Endings recorded ${stats.coverage.endings}/${stats.coverage.points} · Strokes recorded ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.`, 'caption', 8]];
-    if (hasScoreCorrections) coverage.push(['The score includes manual corrections. Statistics use observed points only.', 'caption', 8]);
-    group(coverage);
-    const names = [record.players[0].name, record.players[1].name] as const;
-    pressurePoints(names, stats.players);
-    const notes = record.matchNotes?.trim();
-    if (notes) matchNotes(notes);
-    notesSummary(pointNoteSummary(points, names));
-    const notable = pointEntries.map(({ point }, index) => ({ point, number: index + 1 })).filter(p => hasPointNotes(p.point.observations));
-    for (const [index, { point, number }] of notable.entries()) {
-      const observations = point.observations!;
-      const details: TextBlock[] = [
-        [`${number}. ${pointScoreBefore(point)}`, 'caption', 2],
-        [`${names[point.winner]} won`, 'subheading'],
-        [pointEndingLabel(point, names), 'body', 3],
+    if (hasScoreCorrections) group([['The score includes manual corrections. Statistics use recorded points only.', 'caption', 10]]);
+    if (variant !== 'point-by-point') {
+      statsTable('Match stats', names, stats.players, false);
+      if (stats.coverage.endings > 0) strokeTable(names, stats.players);
+      if (stats.coverage.points) group([[
+        `Endings recorded: ${stats.coverage.endings}/${stats.coverage.points} points. Strokes recorded: ${stats.coverage.strokes}/${stats.coverage.endings} endings. Aces count as serve winners; double faults as unforced serve errors.`,
+        'caption', 8,
+      ]]);
+      pressurePoints(names, stats.players);
+      const notes = record.matchNotes?.trim();
+      if (notes) matchNotes(notes);
+      if (variant === 'combined') notesSummary(pointNoteSummary(points, names));
+    }
+
+    if (variant === 'summary') return;
+    const stages = buildPointByPoint(projection, names);
+    const logIntro: TextBlock[] = [
+      ['Point by point', 'heading', 4],
+      [`Scores are shown before each point, with ${names[0]} first and ${names[1]} second.`, 'caption', 8],
+    ];
+    if (!stages.length) {
+      group([...logIntro, ['No points recorded yet.', 'body']]);
+      return;
+    }
+    for (const [index, stage] of stages.entries()) {
+      const intro: TextBlock[] = [
+        ...(index === 0 ? logIntro : []),
+        [stage.title, 'heading', 4],
+        [stage.status === 'completed' ? `${stage.points.length} recorded points` : `${stage.points.length} recorded points · ${stage.status === 'in-progress' ? 'In progress' : stage.status === 'paused' ? 'Paused' : 'Unfinished'}`, 'caption', 7],
       ];
-      const labels = pointNoteLabels(observations, names);
-      if (labels.length) details.push([labels.join(' · '), 'caption', 4]);
-      pointNote(details, observations.notes, index === 0 ? [
-        ['Notes and notable points', 'heading', 4],
-        [`Scores list ${names[0]} first and ${names[1]} second.`, 'caption', 8],
-      ] : undefined);
+      for (const [pointIndex, point] of stage.points.entries()) {
+        const details: TextBlock[] = [
+          [`${point.number}. ${point.scoreBefore}  ·  ${point.winner} won`, 'subheading'],
+          [`${point.ending}  ·  ${point.serve}`, 'caption'],
+        ];
+        if (point.pressure.length) details.push([point.pressure.join(' · '), 'tableTotal']);
+        for (const tone of ['rally', 'positive', 'negative', 'neutral'] as const) {
+          const labels = point.labels.filter(label => label.tone === tone).map(label => label.text);
+          if (labels.length) details.push([labels.join('  ·  '), tone === 'neutral' ? 'caption' : tone]);
+        }
+        pointNote(details, point.notes, pointIndex === 0 ? intro : undefined);
+      }
+      if (stage.points.length) {
+        statsTable(`${stage.title} stats`, names, stage.stats.players, true);
+      } else {
+        group([...intro, ['No points were recorded for this stage.', 'body', 14]]);
+      }
     }
   });
 }

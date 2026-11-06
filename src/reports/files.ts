@@ -4,7 +4,7 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Asset } from 'expo-asset';
 import { createMatchPDF, createPlayerPerformancePDF } from './pdf.ts';
-import type { ReportFonts } from './pdf.ts';
+import type { MatchPDFVariant, ReportFonts } from './pdf.ts';
 import type { PlayerPerformanceReport } from './playerPerformance.ts';
 import type { MatchRecord } from '../storage/model.ts';
 
@@ -48,8 +48,10 @@ async function shareReportPDF(filename: string, create: (fonts: ReportFonts) => 
   await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: 'Save or share tennis report' });
 }
 
-export function sharePDF(record: MatchRecord): Promise<void> {
-  return shareReportPDF(`tennis-match-${record.id.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`, font => createMatchPDF(record, font));
+export function sharePDF(record: MatchRecord, variant: MatchPDFVariant): Promise<void> {
+  const players = record.players.map(({ name }, side) => name.normalize('NFKD').replace(/\p{M}/gu, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 40).replace(/^-+|-+$/g, '') || (side === 0 ? 'Player' : 'Opponent'));
+  return shareReportPDF(`${players.join('-vs-')}-${record.date}-${variant}.pdf`, fonts => createMatchPDF(record, fonts, variant));
 }
 
 export function sharePlayerPerformancePDF(report: PlayerPerformanceReport): Promise<void> {

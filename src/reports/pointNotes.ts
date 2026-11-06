@@ -6,24 +6,34 @@ export function callSourceLabel(source: CallSource, names: readonly [string, str
   return typeof source === 'number' ? names[source] : source === 'official' ? 'Official' : 'Not known';
 }
 
-export function pointNoteLabels(observations: PointObservations | undefined, names: readonly [string, string]): string[] {
+export interface PointNoteDetail {
+  text: string;
+  tone: 'rally' | 'positive' | 'negative' | 'neutral';
+}
+
+export function pointNoteDetails(observations: PointObservations | undefined, names: readonly [string, string]): PointNoteDetail[] {
   if (!observations) return [];
-  const labels: string[] = [];
+  const labels: PointNoteDetail[] = [];
   const rally = rallyLengthOf(observations);
-  if (rally) labels.push(rallyLengthLabels[rally]);
+  if (rally) labels.push({ text: rallyLengthLabels[rally], tone: 'rally' });
   for (const source of questionableCallSources(observations)) {
-    labels.push(`Questionable call by ${callSourceLabel(source, names)}`);
+    labels.push({ text: `Questionable call by ${callSourceLabel(source, names)}`, tone: 'neutral' });
   }
   const source = observations.callBy;
   const callMaker = source === null || source === 'unknown' ? '' : ` · Call by ${callSourceLabel(source, names)}`;
-  if (observations.disputed) labels.push(`Call was disputed${callMaker}`);
-  if (observations.callIncorrect) labels.push(`Call was incorrect${callMaker}`);
+  if (observations.disputed) labels.push({ text: `Call was disputed${callMaker}`, tone: 'neutral' });
+  if (observations.callIncorrect) labels.push({ text: `Call was incorrect${callMaker}`, tone: 'neutral' });
   for (const side of [0, 1] as const) {
     for (const note of observations.playerNotes?.[side] ?? []) {
-      labels.push(`${names[side]} · ${playerNoteLabels[note]}`);
+      const group = playerNoteGroups.find(({ notes }) => notes.includes(note));
+      labels.push({ text: `${names[side]} · ${playerNoteLabels[note]}`, tone: group?.title === 'Positive' ? 'positive' : 'negative' });
     }
   }
   return labels;
+}
+
+export function pointNoteLabels(observations: PointObservations | undefined, names: readonly [string, string]): string[] {
+  return pointNoteDetails(observations, names).map(({ text }) => text);
 }
 
 export function pointNoteSummary(points: readonly RecordedPoint[], names: readonly [string, string]) {
