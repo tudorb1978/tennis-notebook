@@ -41,10 +41,10 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
       <Text accessibilityRole="header" style={{ color: c.courtInk, fontSize: 33, fontWeight: '700', letterSpacing: -1.2, lineHeight: 36 }}>Your tennis notebook</Text>
       <T small style={{ color: c.courtSub }}>Record and review match play.</T>
     </View>
-    <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8 }}>
+    {groups.length > 0 && <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8 }}>
       <Button primary style={{ flex: 1, minWidth: 0 }} testID="new-match" disabled={busy || !available} onPress={onNewMatch}>New match &amp; event</Button>
       {hasEvents && <Button style={{ flex: 1, minWidth: 0 }} disabled={busy} onPress={onAddToEvent}>Add match to event</Button>}
-    </View>
+    </View>}
     {players.length > 0 && <View style={{ gap: 6 }}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Text accessibilityRole="header" style={{ color: c.ink, fontSize: 21, fontWeight: '700', letterSpacing: -0.45 }}>Match history</Text>
@@ -52,9 +52,12 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
       </Row>
       <Choices compact label="Player" value={filter} options={[{ value: 'all', label: 'All players' }, ...players.map(player => ({ value: player.id, label: player.name }))]} onChange={onFilter} />
     </View>}
-    {visibleGroups.length === 0 && <Card style={{ gap: 6 }}>
-      <T bold>{groups.length ? 'No matches for this player' : 'Start with your next match'}</T>
-      <T muted small>{groups.length ? 'Choose another player to see their matches.' : 'Choose a player and format, then start recording points.'}</T>
+    {groups.length === 0 ? <Button primary testID="new-match" disabled={busy || !available} onPress={onNewMatch}
+      style={{ minHeight: 72, borderRadius: 16, paddingHorizontal: 20 }}>
+      Start recording your first match
+    </Button> : visibleGroups.length === 0 && <Card style={{ gap: 6 }}>
+      <T bold>No matches for this player</T>
+      <T muted small>Choose another player to see their matches.</T>
     </Card>}
     {visibleGroups.map(({ group, matches }) => <View key={group.key} style={{ gap: 8 }}>
       <Row style={{ justifyContent: 'space-between' }}>

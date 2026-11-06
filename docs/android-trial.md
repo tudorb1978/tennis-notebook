@@ -6,7 +6,7 @@ The first Android build is for a practice-match trial of the courtside recording
 
 Copy `output/android/tennis-tracker-preview.apk` to your Android phone and open it. Android may ask you to allow installation from the app you used to open the file. Once installed, open Tennis Notebook.
 
-Tap New match & event, enter your player's name and the opponent, select a format, and choose the first server. To reuse the venue and court details from a previous match, tap Add match to event and pick the event. The three match formats and their scoring rules are confirmed in [Initial match formats](match-formats.md).
+Tap Start recording your first match in an empty library or New match & event once you have saved matches. Enter your player's name and the opponent, select a format, and choose the first server. To reuse the venue and court details from a previous match, tap Add match to event and pick the event. The three match formats and their scoring rules are confirmed in [Initial match formats](match-formats.md).
 
 Use Match details in the match header to fill in or update the event, date, round, venue, surface, indoor or outdoor setting, and conditions during or after the match.
 

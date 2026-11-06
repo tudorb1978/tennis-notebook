@@ -41,7 +41,8 @@ const output=process.env.TEST_OUTPUT||'/tmp';
   try{
     await page.clock.setFixedTime(new Date('2026-11-05T12:00:00Z'));
     await page.goto(base,{waitUntil:'domcontentloaded'});await expect(page.getByText('Your tennis notebook',{exact:true})).toBeVisible({timeout:60000});
-    await page.getByTestId('new-match').click();
+    await expect(button('New match & event')).toHaveCount(0);
+    await button('Start recording your first match').click();
     await page.getByTestId('new-player-name').fill('Alex');await page.getByTestId('opponent-name').fill('Jamie');
     await page.getByTestId('fast4-match-tiebreak').click();await page.getByRole('textbox',{name:'Tournament or group',exact:true}).fill('Club tournament');
     await page.getByTestId('start-match').click();await expect(page.getByTestId('point-winner-0')).toBeVisible();await idle();
