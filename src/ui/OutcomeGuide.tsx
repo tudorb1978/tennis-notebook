@@ -20,13 +20,13 @@ export function OutcomeHelpButton({ onPress, disabled = false }: { onPress: () =
 export function OutcomeGuide({ onClose }: { onClose: () => void }) {
   return <Stack>
     <Heading>Outcome definitions</Heading>
-    <T small muted>Choose the player who hit the winner or made the error.</T>
     <Card>
       {definitions.map(({ label, text }) => <View key={label} style={{ gap: 3 }}>
         <T bold>{label}</T>
         <T>{text}</T>
       </View>)}
     </Card>
+    <T small muted>These definitions are guidelines. Choose the outcome that best fits what you saw and keep recording.</T>
     <T small muted>Adapted from the Simple Match Chart by David H Gabb Tennis Services.</T>
     <Button primary onPress={onClose}>Done</Button>
   </Stack>;
