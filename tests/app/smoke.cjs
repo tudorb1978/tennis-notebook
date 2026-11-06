@@ -226,7 +226,11 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await expect(page.getByText('Alex missed the return',{exact:true})).toBeVisible();
     await page.reload({waitUntil:'domcontentloaded'});await expect(page.getByText('Alex missed the return',{exact:true})).toBeVisible();
     await expect(generalEnding).toHaveCount(0);await button('Unforced error').click();await points('0','15');
-    console.log('PASS Missed returns use the actual returner and save the chosen error with the observed stroke or Not seen');
+    await otherServer.click();await page.getByTestId('first-in').click();await choose('Return result','Missed');
+    await choose('Return stroke','Forehand');await button('Not sure').click();await points('0','30');
+    await expect(page.getByText('Previous point · Jamie',{exact:true}).locator('..').getByText('Outcome only',{exact:true})).toBeVisible();
+    await page.getByTestId('undo').click();await points('0','15');
+    console.log('PASS Missed returns award the point to the actual server and allow an unclassified error');
 
     await button('Add notes').click();
     await choose('Rally length','Long rally (est. over 15 shots)');
