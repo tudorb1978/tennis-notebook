@@ -16,7 +16,7 @@ export type MatchPDFVariant = 'summary' | 'point-by-point' | 'combined';
 type TextRole = 'title' | 'lead' | 'heading' | 'subheading' | 'body' | 'caption' | 'tableHeader' | 'tableBody' | 'tableTotal'
   | 'positive' | 'negative' | 'rally';
 type TextBlock = readonly [text: string, role: TextRole, gapAfter?: number];
-type RowTone = 'header' | 'plain' | 'stripe' | 'total';
+type RowTone = 'header' | 'labels' | 'plain' | 'stripe' | 'total';
 
 interface ReportWriter {
   group: (blocks: readonly TextBlock[]) => void;
@@ -57,6 +57,10 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
   const stripe = rgb(.97, .98, .97);
   const white = rgb(1, 1, 1);
   const lime = rgb(.88, .95, .68);
+  const playerFills = [
+    { labels: rgb(.88, .93, .84), plain: rgb(.96, .98, .94), stripe: rgb(.93, .96, .90), total: rgb(.88, .93, .84) },
+    { labels: rgb(.87, .92, .95), plain: rgb(.95, .97, .99), stripe: rgb(.92, .95, .97), total: rgb(.87, .92, .95) },
+  ];
   const styles = {
     title: { font: bold, color: court, size: 25, leading: 31 },
     lead: { font: bold, color: court, size: 19, leading: 24 },
@@ -184,22 +188,28 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
     blocks.forEach(block => draw(block, left + inset));
     y -= 27;
   }
-  function tableRow(cells: readonly (number | string)[], widths: readonly number[], tone: RowTone) {
-    const role = tone === 'header' ? 'tableHeader' : tone === 'total' ? 'tableTotal' : 'tableBody';
-    const blocks = cells.map((cell, i) => layout([String(cell), role], widths[i]! - 20));
+  function tableRow(cells: readonly (number | string)[], widths: readonly number[], tone: RowTone, padding = 10) {
+    const role = tone === 'header' ? 'tableHeader' : tone === 'total' || tone === 'labels' ? 'tableTotal' : 'tableBody';
+    const blocks = cells.map((cell, i) => layout([String(cell), role], widths[i]! - 2 * padding));
     const height = Math.max(...blocks.map(block => block.height)) + 5;
-    return { blocks, widths, tone, height };
+    return { blocks, widths, tone, height, padding };
   }
-  function drawTableRow({ blocks, widths, tone, height }: ReturnType<typeof tableRow>) {
-    const fill = { header: court, plain: white, stripe, total: soft }[tone];
-    page.drawRectangle({ x: left, y: y - height, width: contentWidth, height, color: fill });
+  function drawTableRow({ blocks, widths, tone, height, padding }: ReturnType<typeof tableRow>, players?: readonly (number | null)[]) {
+    const fill = { header: court, labels: soft, plain: white, stripe, total: soft }[tone];
     let x = left;
     for (const [index, block] of blocks.entries()) {
       const { lines, font, size, color, leading } = block;
       const cellWidth = widths[index]!;
+      const player = players?.[index];
+      const tint = tone !== 'header' && player != null ? playerFills[player]?.[tone] : undefined;
+      page.drawRectangle({ x, y: y - height, width: cellWidth, height, color: tint ?? fill });
+      if (players && index > 0) {
+        const groupBoundary = player !== players[index - 1];
+        page.drawLine({ start: { x, y }, end: { x, y: y - height }, thickness: groupBoundary ? .8 : .4, color: line });
+      }
       let baseline = y - (height - block.height) / 2 - size;
       for (const text of lines) {
-        if (text) page.drawText(text, { x: index === 0 ? x + 10 : x + (cellWidth - font.widthOfTextAtSize(text, size)) / 2, y: baseline, font, size, color });
+        if (text) page.drawText(text, { x: index === 0 ? x + padding : x + (cellWidth - font.widthOfTextAtSize(text, size)) / 2, y: baseline, font, size, color });
         baseline -= leading;
       }
       x += cellWidth;
@@ -224,21 +234,45 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
     rows.push(tableRow(['Total', ...totalsByType], widths, 'total'));
     ensure(rows.reduce((space, row) => space + row.height, title.height + 8 + totals.height + serving.height - serving.gap));
     draw(title);
-    rows.forEach(drawTableRow);
+    rows.forEach(row => drawTableRow(row));
     y -= 8;
     draw(totals);
     draw(serving);
   }
-  function comparisonTable(heading: string, firstColumn: string, names: readonly [string, string], rows: readonly (readonly (string | number)[])[], detail?: string) {
+  function comparisonTable(heading: string, firstColumn: string, names: readonly [string, string], rows: readonly (readonly (string | number)[])[]) {
     const title = layout([heading, 'heading', 5]);
-    const caption = detail ? layout([detail, 'caption', 7]) : null;
     const widths = [150, (contentWidth - 150) / 2, (contentWidth - 150) / 2];
     const table = [tableRow([firstColumn, ...names], widths, 'header'),
       ...rows.map((row, index) => tableRow(row, widths, index % 2 ? 'stripe' : 'plain'))];
-    ensure(title.height + (caption?.height ?? 0) + table.reduce((sum, row) => sum + row.height, 0));
+    ensure(title.height + table.reduce((sum, row) => sum + row.height, 0));
+    draw(title);
+    table.forEach(row => drawTableRow(row));
+    y -= 13;
+  }
+  function groupedTable(heading: string, firstColumn: string, names: readonly string[], columns: readonly string[],
+    rows: readonly (readonly (string | number)[])[], options: { bands?: readonly string[]; detail?: string; total?: boolean } = {}) {
+    const title = layout([heading, 'heading', 5]);
+    const caption = options.detail ? layout([options.detail, 'caption', 7]) : null;
+    const labelWidth = 113;
+    const playerWidth = (contentWidth - labelWidth) / names.length;
+    const numberWidth = playerWidth / columns.length;
+    const widths = [labelWidth, ...names.flatMap(() => columns.map(() => numberWidth))];
+    const players = [null, ...names.flatMap((_, index) => columns.map(() => index))];
+    const header = tableRow([firstColumn, ...names], [labelWidth, ...names.map(() => playerWidth)], 'header');
+    const labels = tableRow(['', ...names.flatMap(() => columns)], widths, 'labels', 6);
+    const bands = options.bands ?? [];
+    const bandRow = bands.length ? tableRow(['', ...names.flatMap(() => bands)],
+      [labelWidth, ...names.flatMap(() => bands.map(() => playerWidth / bands.length))], 'labels', 6) : null;
+    const body = rows.map((row, index) => tableRow(row, widths,
+      options.total && index === rows.length - 1 ? 'total' : index % 2 ? 'stripe' : 'plain', 6));
+    const tableHeight = [header, labels, ...body].reduce((sum, row) => sum + row.height, bandRow?.height ?? 0);
+    ensure(title.height + (caption?.height ?? 0) + tableHeight);
     draw(title);
     if (caption) draw(caption);
-    table.forEach(drawTableRow);
+    drawTableRow(header, [null, ...names.map((_, index) => index)]);
+    if (bandRow) drawTableRow(bandRow, [null, ...names.flatMap((_, index) => bands.map(() => index))]);
+    drawTableRow(labels, players);
+    body.forEach(row => drawTableRow(row, players));
     y -= 13;
   }
   function statsTable(title: string, names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats], includeStrokeTotals: boolean) {
@@ -259,31 +293,22 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
   function strokeTable(names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats]) {
     const rows = strokes.filter(stroke => stats.some(player =>
       Object.values(player.byStroke[stroke]).some(Boolean))).map(stroke => [
-      strokeNames[stroke], ...stats.map(player => {
+      strokeNames[stroke], ...stats.flatMap(player => {
         const { winners, unforcedErrors, forcedErrors } = player.byStroke[stroke];
-        return `${winners} / ${unforcedErrors} / ${forcedErrors}`;
+        return [winners, unforcedErrors, forcedErrors];
       }),
     ]);
-    rows.push(['Total', ...stats.map(player => strokeTotals(player).join(' / '))]);
-    comparisonTable('Shot breakdown', 'Stroke', names, rows, 'Each cell shows winners / unforced errors / forced errors.');
+    rows.push(['Total', ...stats.flatMap(strokeTotals)]);
+    groupedTable('Shot breakdown', 'Stroke', names, ['Winners', 'Unforced\nerrors', 'Forced\nerrors'], rows, { total: true });
   }
   function pressurePoints(names: readonly string[], stats: readonly PlayerStats[]) {
     const data = pressurePointGroups(stats);
     if (!data.length) return;
-    const title = layout(['Pressure points', 'heading', 4]);
-    const note = layout([pressurePointExplanation, 'caption', 8]);
-    const widths = [126, ...names.map(() => (contentWidth - 126) / names.length)];
-    const rows = [
-      tableRow(['Opportunity', ...names], widths, 'header'),
-      ...data.map(({ label, values }, i) => tableRow([
-        label, ...values.map(({ chances, faced }) => `Own chances ${chances}\nFaced ${faced}`),
-      ], widths, i % 2 === 0 ? 'plain' : 'stripe')),
-    ];
-    ensure(rows.reduce((space, row) => space + row.height, title.height + note.height));
-    draw(title);
-    draw(note);
-    rows.forEach(drawTableRow);
-    y -= 16;
+    const rows = data.map(({ label, values }) => [
+      label, ...values.flatMap(({ chances, faced }) => [chances.won, chances.lost, faced.won, faced.lost]),
+    ]);
+    groupedTable('Pressure points', 'Point type', names, ['Won', 'Lost', 'Saved', 'Lost'], rows,
+      { bands: ['Own chances', 'Faced'], detail: pressurePointExplanation });
   }
   function notesSummary(summary: ReturnType<typeof pointNoteSummary>) {
     for (const [index, section] of summary.entries()) {

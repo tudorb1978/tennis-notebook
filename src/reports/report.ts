@@ -15,17 +15,13 @@ export function pressurePointGroups(players: readonly PlayerStats[]) {
   if (!players.some(player => Object.values(player.pressurePoints).some(({ chances, faced }) => chances.won || chances.lost || faced.won || faced.lost))) return [];
   return ([['break', 'Break points'], ['set', 'Set points'], ['match', 'Match points']] as const).map(([stake, label]) => ({
     label,
-    values: players.map(({ pressurePoints }) => {
-      const { won, lost } = pressurePoints[stake].chances;
-      const faced = pressurePoints[stake].faced;
-      return { chances: `${won} won · ${lost} lost`, faced: `${faced.won} saved · ${faced.lost} lost` };
-    }),
+    values: players.map(player => player.pressurePoints[stake]),
   }));
 }
 export function pressurePointRows(players: readonly PlayerStats[]) {
   return pressurePointGroups(players).flatMap(({ label, values }) => [
-    { label: `${label} · Own chances`, values: values.map(value => value.chances) },
-    { label: `${label} · Faced`, values: values.map(value => value.faced) },
+    { label: `${label} · Own chances`, values: values.map(({ chances }) => `${chances.won} won · ${chances.lost} lost`) },
+    { label: `${label} · Faced`, values: values.map(({ faced }) => `${faced.won} saved · ${faced.lost} lost`) },
   ]);
 }
 export function pointScoreBefore({ context }: RecordedPoint, compact = false): string {
