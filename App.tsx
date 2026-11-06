@@ -457,7 +457,7 @@ function Main() {
       </Card>}
       <View style={{ gap: 4 }}>
         <T bold style={{ fontSize: 19, lineHeight: 24 }}>Winners and errors by stroke</T>
-        <T small muted>Aces count as serve winners. Double faults are separate.</T>
+        <T small muted>Aces count as serve winners. Double faults count as unforced serve errors.</T>
       </View>
       {([0, 1] as const).map(side => <StatsTable key={side} name={names[side]} stats={stats.players[side]} />)}
       <T small muted>Recorded endings {stats.coverage.endings}/{stats.coverage.points} · Recorded strokes {stats.coverage.strokes}/{stats.coverage.endings}</T>

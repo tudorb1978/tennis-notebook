@@ -30,4 +30,4 @@ Score corrections require the next server. For a tie-break correction, the engin
 
 The app implements the three presets, scoring and service transitions, active-stage corrections, editing earlier point observations, detailed serve observations, suspension and resumption, retirement, abandonment, replay, and undo. Correcting an earlier completed set, timed formats, doubles service order, and change-of-ends reminders remain future implementation work.
 
-Stroke is required for observed winners and errors. Explicit unseen strokes and winner-only records remain distinguishable. Aces use serve automatically and count as serve winners; double faults are listed separately. Manual score corrections flag incomplete point coverage and do not invent shot observations.
+Stroke is required for observed winners and errors. Explicit unseen strokes and winner-only records remain distinguishable. Aces count as serve winners. Double faults count as unforced serve errors and also have their own tally. Manual score corrections flag incomplete point coverage and do not invent shot observations.

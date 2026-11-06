@@ -150,8 +150,8 @@ export function summarisePoints(points: readonly RecordedPoint[]): {
     const stats = players[point.actor];
     if (point.ending === 'ace') stats.aces++;
     if (point.ending === 'double-fault') stats.doubleFaults++;
-    else if (point.ending === 'winner' || point.ending === 'ace') stats.byStroke[point.stroke].winners++;
-    else if (point.ending === 'unforced-error') stats.byStroke[point.stroke].unforcedErrors++;
+    if (point.ending === 'winner' || point.ending === 'ace') stats.byStroke[point.stroke].winners++;
+    else if (point.ending === 'unforced-error' || point.ending === 'double-fault') stats.byStroke[point.stroke].unforcedErrors++;
     else if (point.ending === 'forced-error') stats.byStroke[point.stroke].forcedErrors++;
   }
   return { players, coverage };

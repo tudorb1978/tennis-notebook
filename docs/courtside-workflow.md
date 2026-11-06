@@ -57,7 +57,7 @@ For timed formats, explicitly define duration, whether an ongoing point finishes
 
 ## Match review and reports
 
-Lead with each player's winners, unforced errors, and forced errors broken down by stroke. Include totals and an explicit category for an unseen stroke when needed. Aces count as serve winners; show double faults separately. These breakdowns must update after editing or undoing a point and be available across matches as well as in a match report.
+Lead with each player's winners, unforced errors, and forced errors broken down by stroke. Include totals and an explicit category for an unseen stroke when needed. Aces count as serve winners. Double faults count as unforced serve errors and also have their own tally. These breakdowns must update after editing or undoing a point and be available across matches as well as in a match report.
 
 Also provide a score summary, point history, serve and return statistics where available, tags, and notes. Reports should offer both chart styles from the existing paper workflow.
 

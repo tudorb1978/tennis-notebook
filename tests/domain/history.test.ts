@@ -44,7 +44,7 @@ test('Winner and error strokes are required and determine the correct point winn
   assert.throws(() => recordPoint(createScore(format, 0), missingStroke), /Choose a stroke/);
 });
 
-test('Aces and double faults use serve automatically and stay separate in reports', () => {
+test('Aces count as serve winners and double faults count as unforced serve errors', () => {
   const events: readonly MatchEvent[] = [
     { id: 'a', type: 'point', input: { type: 'ace', actor: 0 } },
     { id: 'b', type: 'point', input: { type: 'double-fault', actor: 0 } },
@@ -55,7 +55,8 @@ test('Aces and double faults use serve automatically and stay separate in report
   assert.equal(projection.stats.players[0].byStroke.serve.winners, 2);
   assert.equal(projection.stats.players[0].aces, 1);
   assert.equal(projection.stats.players[0].doubleFaults, 1);
-  assert.equal(projection.stats.players[0].byStroke.serve.unforcedErrors, 0);
+  assert.equal(projection.stats.players[0].byStroke.serve.unforcedErrors, 1);
+  assert.equal(projection.stats.players[1].byStroke.serve.unforcedErrors, 0);
   assert.throws(() => recordPoint(createScore(format, 0), { type: 'ace', actor: 1 }));
 });
 

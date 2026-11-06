@@ -269,6 +269,8 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await button('Match details').click();await expect(page.getByRole('textbox',{name:'Date (YYYY-MM-DD)',exact:true})).toHaveValue('2026-11-04');
     await expect(button('Outdoor')).toHaveAttribute('aria-pressed','true');await button('Cancel').click();
     await expect(page.getByText(/Aces: 3 · Double faults: 1/)).toBeVisible();
+    const serveRow=page.getByText(/Aces: 3 · Double faults: 1/).locator('../..').getByText('Serve',{exact:true}).locator('..');
+    await expect(serveRow.locator(':scope > *')).toHaveText(['Serve','3','1','0']);
     await expect(page.getByText('Long rally (est. over 15 shots) · 0',{exact:true})).toBeVisible();
     await expect(page.getByText('Very long rally (est. over 25 shots) · 1',{exact:true})).toBeVisible();
     await expect(page.getByText('Looks tired · Alex 1 · Jamie 0',{exact:true})).toBeVisible();

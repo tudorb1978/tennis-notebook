@@ -245,7 +245,7 @@ export function createMatchPDF(record: MatchRecord, fonts: ReportFonts): Promise
     const times = timingLabels(timing);
     summary(resultLabel(score), [`${status} · ${record.format.name}`, ...(times.length ? [times.join(' · ')] : [])]);
     for (const side of [0, 1] as const) playerTable(record.players[side].name, stats.players[side]);
-    const coverage: TextBlock[] = [[`Aces count as serve winners. Double faults are separate. Endings recorded ${stats.coverage.endings}/${stats.coverage.points} · Strokes recorded ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.`, 'caption', 8]];
+    const coverage: TextBlock[] = [[`Aces count as serve winners. Double faults count as unforced serve errors. Endings recorded ${stats.coverage.endings}/${stats.coverage.points} · Strokes recorded ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.`, 'caption', 8]];
     if (hasScoreCorrections) coverage.push(['The score includes manual corrections. Statistics use observed points only.', 'caption', 8]);
     group(coverage);
     const names = [record.players[0].name, record.players[1].name] as const;
