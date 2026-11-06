@@ -83,7 +83,7 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
         </View>
         {players.length > 0 && <Button quiet compact icon="chart" disabled={busy} onPress={() => onPerformance(null)}>Player performance</Button>}
       </Row>
-      {players.length > 0 && <Choices label="Player" value={filter} options={[{ value: 'all', label: 'All players' }, ...players.map(player => ({ value: player.id, label: player.name }))]} onChange={onFilter} />}
+      {players.length > 0 && <Choices value={filter} options={[{ value: 'all', label: 'All players' }, ...players.map(player => ({ value: player.id, label: player.name }))]} onChange={onFilter} />}
       {visibleGroups.length === 0 && <Button label={`${emptyMessage}. Start a new match`} disabled={busy || !available}
         onPress={onNewMatch} style={{ backgroundColor: c.bg, paddingHorizontal: 10, paddingVertical: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>

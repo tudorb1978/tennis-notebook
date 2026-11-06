@@ -50,11 +50,11 @@ export function Field({ label, value, onChange, multiline = false, numeric = fal
   const c = useTheme();
   return <View style={{ gap: 6 }}><T small bold>{label}</T><TextInput accessibilityLabel={label} testID={testID} value={value} onChangeText={onChange} multiline={multiline} maxLength={maxLength} placeholder={placeholder} placeholderTextColor={c.sub} inputMode={numeric ? 'numeric' : 'text'} autoCorrect={!numeric} style={{ backgroundColor: c.card, color: c.ink, borderColor: c.line, borderWidth: 1, borderRadius: 10, padding: 12, minHeight: multiline ? 95 : 48, fontSize: 16, textAlignVertical: multiline ? 'top' : 'center' }} /></View>;
 }
-export function Choices<T extends string | number>({ label, value, options, onChange, disabled = false, compact = false, labelIcon }: { label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (value: T) => void; disabled?: boolean; compact?: boolean; labelIcon?: IconName }) {
+export function Choices<T extends string | number>({ label, value, options, onChange, disabled = false, compact = false, labelIcon }: { label?: string; value: T; options: readonly { value: T; label: string }[]; onChange: (value: T) => void; disabled?: boolean; compact?: boolean; labelIcon?: IconName }) {
   const c = useTheme();
   const caption = <T small bold>{label}</T>;
   return <View style={{ gap: compact ? 3 : 7 }}>
-    {labelIcon ? <Row><Icon name={labelIcon} color={c.accent} />{caption}</Row> : caption}
+    {label ? (labelIcon ? <Row><Icon name={labelIcon} color={c.accent} />{caption}</Row> : caption) : null}
     <Row style={compact ? { gap: 4 } : undefined}>{options.map(option => <Button key={String(option.value)} compact={compact} toggle selected={value === option.value} onPress={() => onChange(option.value)} disabled={disabled}>{option.label}</Button>)}</Row>
   </View>;
 }
