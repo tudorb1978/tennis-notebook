@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { ViewStyle } from 'react-native';
 import { emptyObservations } from '../domain/points.ts';
 import type { PointInput, PointObservations } from '../domain/points.ts';
 import type { Side } from '../domain/scoring.ts';
 import { playerNoteGroups, playerNoteLabels, questionableCallSources, rallyLengthLabels, rallyLengthOf } from '../domain/pointNotes.ts';
 import type { PlayerNote } from '../domain/pointNotes.ts';
-import { Button, Card, Choices, Divider, Heading, Row, Stack, T, Toggle, useTheme } from './kit.tsx';
+import { Button, Card, Choices, Divider, Heading, Row, Stack, T, Toggle, useLayout, useTheme } from './kit.tsx';
 import { Icon } from './Icon.tsx';
 
 function NoteSectionTitle({ icon, title, detail }: { icon: 'court' | 'note' | 'players'; title: string; detail?: string }) {
@@ -52,13 +52,15 @@ export function ServeObservations({ value, onChange }: { value: PointObservation
   </Stack>;
 }
 
-export function PointNotesEditor({ input, names, busy, onSave }: {
+export function PointNotesEditor({ input, names, busy, errorBlock, onSave }: {
   input: PointInput;
   names: readonly [string, string];
   busy: boolean;
+  errorBlock: React.ReactNode;
   onSave: (input: PointInput) => void;
 }) {
   const c = useTheme();
+  const layout = useLayout();
   const [mindsetExpanded, setMindsetExpanded] = useState(false);
   const [observations, setObservations] = useState(() => {
     const previous = input.observations ?? emptyObservations();
@@ -87,7 +89,9 @@ export function PointNotesEditor({ input, names, busy, onSave }: {
   const marked = observations.playerNotes?.reduce((count, notes) => count + notes.length, 0) ?? 0;
   const mindsetSummary = marked ? `${marked} ${marked === 1 ? 'observation' : 'observations'} marked` : 'Optional player observations';
 
-  return <Stack>
+  return <>
+    <ScrollView testID="point-notes-scroll" keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}><Stack>
+    {errorBlock}
     <View style={{ gap: 4 }}>
       <Heading>Point notes</Heading>
       <T small muted>Mark what you noticed during this point.</T>
@@ -154,6 +158,12 @@ export function PointNotesEditor({ input, names, busy, onSave }: {
         </View>)}
       </>}
     </Card>
-    <Button primary testID="save-point-notes" disabled={busy} onPress={() => onSave({ ...input, observations })}>Save notes</Button>
-  </Stack>;
+    </Stack></ScrollView>
+    <View style={layout.footer}>
+      <View style={layout.footerContent}>
+        <Button primary style={{ flex: 1 }} testID="save-point-notes" disabled={busy}
+          onPress={() => onSave({ ...input, observations })}>Save notes</Button>
+      </View>
+    </View>
+  </>;
 }

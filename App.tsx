@@ -585,7 +585,10 @@ function Main() {
         <OutcomeGuide onClose={() => setGuideOpen(false)} />
       </ScrollView>}
       {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end', borderBottomWidth: 1, borderColor: c.line, backgroundColor: c.card }}><Button quiet compact icon="close" disabled={busy} onPress={closePanel}>{panel?.kind === 'settings' ? 'Done' : 'Cancel'}</Button></Row>}
-      <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? 'closed'} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>{errorBlock}
+      {panel?.kind === 'point-notes' && selectedEntry && record && !guideOpen ? <PointNotesEditor
+        key={selectedEntry.id} input={selectedEntry.input} names={[record.players[0].name, record.players[1].name]}
+        busy={busy} errorBlock={errorBlock} onSave={saveSelectedPoint}
+      /> : <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? 'closed'} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>{errorBlock}
       {panel?.kind === 'settings' && <Stack>
         <Heading>Settings</Heading>
         <Card>
@@ -655,9 +658,6 @@ function Main() {
         record={record} input={selectedEntry.input} server={selectedEntry.point.server} busy={busy} onSave={saveSelectedPoint}
         onOutcomeHelp={() => setGuideOpen(true)}
       />}
-      {panel?.kind === 'point-notes' && selectedEntry && record && <PointNotesEditor
-        input={selectedEntry.input} names={[record.players[0].name, record.players[1].name]} busy={busy} onSave={saveSelectedPoint}
-      />}
       {panel?.kind === 'delete-point' && selectedEntry && record && <Stack>
         <Heading>Delete the last point?</Heading>
         <T>{record.players[selectedEntry.point.winner].name} won this point. Deleting it removes its notes and recalculates the score and report.</T>
@@ -672,7 +672,7 @@ function Main() {
       {panel?.kind === 'import' && <Stack><Heading>Restore backup</Heading><T>{panel.preview.newPlayers} new players and {panel.preview.newMatches} new matches.</T><Notice>{panel.preview.identical} identical matches will be skipped. {panel.preview.conflicts} conflicts will be left unchanged.</Notice><T small muted>Existing records will not be overwritten.</T><Button primary disabled={busy || (panel.preview.newMatches === 0 && panel.preview.newPlayers === 0)} onPress={() => {
       const text = panel.text;
       void external(async () => { const result = await repository.current!.importNew(text); setPlayers(await repository.current!.players()); setMatches(await repository.current!.matches()); setPanel(null); setScreen('home'); setNotice(`Restored ${result.newMatches} matches. Existing records were kept.`); });
-    }}>Import new records</Button></Stack>}</ScrollView></KeyboardAvoidingView></SafeAreaView></Modal>
+    }}>Import new records</Button></Stack>}</ScrollView>}</KeyboardAvoidingView></SafeAreaView></Modal>
   </SafeAreaView>;
 }
 
