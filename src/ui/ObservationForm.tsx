@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { ViewStyle } from 'react-native';
 import { emptyObservations } from '../domain/points.ts';
 import type { PointInput, PointObservations } from '../domain/points.ts';
 import type { Side } from '../domain/scoring.ts';
 import { playerNoteGroups, playerNoteLabels, questionableCallSources, rallyLengthLabels, rallyLengthOf } from '../domain/pointNotes.ts';
-import type { CallSource, PlayerNote } from '../domain/pointNotes.ts';
-import { Button, Card, Choices, Divider, Field, Heading, Row, Stack, T, Toggle, useTheme } from './kit.tsx';
+import type { PlayerNote } from '../domain/pointNotes.ts';
+import { Button, Card, Choices, Divider, Heading, Row, Stack, T, Toggle, useTheme } from './kit.tsx';
 import { Icon } from './Icon.tsx';
 
 function NoteSectionTitle({ icon, title, detail }: { icon: 'court' | 'note' | 'players'; title: string; detail?: string }) {
@@ -18,6 +18,27 @@ function NoteSectionTitle({ icon, title, detail }: { icon: 'court' | 'note' | 'p
     <View style={{ flex: 1 }}>
       <T bold>{title}</T>
       {detail && <T small muted>{detail}</T>}
+    </View>
+  </View>;
+}
+
+function PointNotesField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const c = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const textStyle = { fontSize: 16, lineHeight: 22, padding: 12, borderWidth: 1, includeFontPadding: false };
+  return <View style={{ gap: 6 }}>
+    <T small bold>Notes</T>
+    <View>
+      {/* Match the input's wrapping to size it without remounting or moving its caret. */}
+      <Text aria-hidden importantForAccessibility="no-hide-descendants"
+        style={{ ...textStyle, opacity: 0, minHeight: expanded ? 86 : 48, maxHeight: 180 }}>{value + '\u200b'}</Text>
+      <TextInput accessibilityLabel="Notes" value={value} onChangeText={onChange} multiline maxLength={2000}
+        placeholder="What stood out?" placeholderTextColor={c.sub}
+        onFocus={() => setExpanded(true)}
+        style={[StyleSheet.absoluteFill, textStyle, {
+          width: '100%', height: '100%', textAlignVertical: 'top',
+          backgroundColor: c.card, borderColor: c.line, color: c.ink, borderRadius: 10,
+        }]} />
     </View>
   </View>;
 }
@@ -71,6 +92,7 @@ export function PointNotesEditor({ input, names, busy, onSave }: {
       <Heading>Point notes</Heading>
       <T small muted>Mark what you noticed during this point.</T>
     </View>
+    <PointNotesField value={observations.notes} onChange={notes => set('notes', notes)} />
     <Card style={{ padding: 12, gap: 9 }}>
       <NoteSectionTitle icon="court" title="Rally length" />
       <Row style={{ alignItems: 'stretch' }}>
@@ -90,11 +112,14 @@ export function PointNotesEditor({ input, names, busy, onSave }: {
       </Row>
       {legacyCall && <T small muted>{legacyCall === 'official' ? 'An earlier note attributed the call to an official.' : 'An earlier note marked a call without naming a player.'}</T>}
       <Toggle label="Dispute about the outcome" checked={observations.disputed} disabled={busy} onChange={v => set('disputed', v)} />
-      {observations.disputed && <Choices<CallSource>
-        label="Call made by" value={observations.callBy ?? 'unknown'}
-        options={[{ value: 0, label: names[0] }, { value: 1, label: names[1] }, { value: 'official', label: 'Official' }, { value: 'unknown', label: 'Not known' }]}
-        onChange={v => set('callBy', v)}
-      />}
+      {observations.disputed && <View style={{ gap: 6 }}>
+        <T small bold>Call made by</T>
+        <Row style={{ flexWrap: 'nowrap', alignItems: 'stretch' }}>
+          {([0, 1, 'official'] as const).map(source => <Toggle key={source}
+            label={source === 'official' ? 'Official' : names[source]} style={playerToggleStyle} disabled={busy}
+            checked={observations.callBy === source} onChange={checked => set('callBy', checked ? source : null)} />)}
+        </Row>
+      </View>}
     </Card>
     <Card style={{ padding: 12, gap: 8 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={marked ? `${mindsetTitle}, ${mindsetSummary}` : mindsetTitle}
@@ -129,7 +154,6 @@ export function PointNotesEditor({ input, names, busy, onSave }: {
         </View>)}
       </>}
     </Card>
-    <Field label="Notes" value={observations.notes} onChange={v => set('notes', v)} multiline maxLength={2000} placeholder="What stood out?" />
     <Button primary testID="save-point-notes" disabled={busy} onPress={() => onSave({ ...input, observations })}>Save notes</Button>
   </Stack>;
 }
