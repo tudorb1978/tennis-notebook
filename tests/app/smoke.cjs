@@ -233,6 +233,11 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     console.log('PASS Missed returns award the point to the actual server and allow an unclassified error');
 
     await button('Add notes').click();
+    await expect(button('Not noted')).toHaveCount(0);
+    const longRally=button('Long rally (est. over 15 shots)');
+    await expect(longRally).toHaveAttribute('aria-pressed','false');
+    await longRally.click();await expect(longRally).toHaveAttribute('aria-pressed','true');
+    await longRally.click();await expect(longRally).toHaveAttribute('aria-pressed','false');
     await choose('Rally length','Long rally (est. over 15 shots)');
     await choose('Rally length','Very long rally (est. over 25 shots)');
     await button('Questionable call by Alex').click();

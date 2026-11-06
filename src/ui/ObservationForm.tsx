@@ -5,7 +5,7 @@ import { emptyObservations } from '../domain/points.ts';
 import type { PointInput, PointObservations } from '../domain/points.ts';
 import type { Side } from '../domain/scoring.ts';
 import { playerNoteLabels, playerNotes, questionableCallSources, rallyLengthLabels, rallyLengthOf } from '../domain/pointNotes.ts';
-import type { CallSource, PlayerNote, RallyLength } from '../domain/pointNotes.ts';
+import type { CallSource, PlayerNote } from '../domain/pointNotes.ts';
 import { Button, Card, Choices, Field, Heading, Row, Stack, T, Toggle, useTheme } from './kit.tsx';
 
 export function ServeObservations({ value, onChange }: { value: PointObservations; onChange: (value: PointObservations) => void }) {
@@ -55,11 +55,13 @@ export function PointNotesEditor({ input, names, busy, onSave }: {
     </View>
     <Card>
       <T bold>More about the point</T>
-      <Choices<RallyLength | 'none' | 'legacy'>
-        label="Rally length" value={rally ?? 'none'}
-        options={[{ value: 'none', label: 'Not noted' }, { value: 'long', label: rallyLengthLabels.long }, { value: 'very-long', label: rallyLengthLabels['very-long'] }]}
-        onChange={v => set('rallyLength', v === 'none' || v === 'legacy' ? null : v)}
-      />
+      <View style={{ gap: 7 }}>
+        <T small bold>Rally length</T>
+        <Row>
+          {(['long', 'very-long'] as const).map(length => <Toggle key={length} label={rallyLengthLabels[length]}
+            checked={rally === length} disabled={busy} onChange={checked => set('rallyLength', checked ? length : null)} />)}
+        </Row>
+      </View>
       {rally === 'legacy' && <T small muted>Previously marked as a long rally. Choose an estimate if you remember the length.</T>}
       <T small bold>Questionable call</T>
       <Row style={{ flexWrap: 'nowrap', alignItems: 'stretch' }}>
