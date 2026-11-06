@@ -5,7 +5,8 @@ import { strokes } from '../domain/points.ts';
 import type { PlayerStats } from '../domain/points.ts';
 import { hasPointNotes } from '../domain/pointNotes.ts';
 import { pointNoteLabels, pointNoteSummary } from './pointNotes.ts';
-import { pointEndingLabel, pointScoreBefore, pressurePointExplanation, pressurePointGroups, replayMatchForReport, resultLabel, strokeNames, timingLabels } from './report.ts';
+import { pointEndingLabel, pointScoreBefore, pressurePointExplanation, pressurePointGroups, replayMatchForReport, resultParts, strokeNames, timingLabels } from './report.ts';
+import type { ResultPart } from './report.ts';
 import { performanceCountLabels } from './playerPerformance.ts';
 import type { PlayerPerformanceReport } from './playerPerformance.ts';
 import type { MatchRecord } from '../storage/model.ts';
@@ -17,7 +18,7 @@ type RowTone = 'header' | 'plain' | 'stripe' | 'total';
 
 interface ReportWriter {
   group: (blocks: readonly TextBlock[]) => void;
-  summary: (lead: string, details: readonly string[]) => void;
+  summary: (lead: string | readonly ResultPart[], details: readonly string[]) => void;
   playerTable: (name: string, stats: PlayerStats) => void;
   pressurePoints: (names: readonly string[], stats: readonly PlayerStats[]) => void;
   matchNotes: (notes: string) => void;
@@ -111,21 +112,57 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
     ensure(blocks.reduce((space, block) => space + block.height, 0));
     blocks.forEach(block => draw(block));
   }
-  function summary(lead: string, details: readonly string[]) {
+  function layoutResult(parts: readonly ResultPart[], maxWidth: number) {
+    const { font, size, color, leading } = styles.lead;
+    const smallSize = 12;
+    const gap = 12;
+    let line = 0, offset = 0;
+    const cells = parts.map(({ score, setTieBreak }) => {
+      const text = score.replace(/–/g, '-');
+      const mainWidth = font.widthOfTextAtSize(text, size);
+      const cellWidth = mainWidth + font.widthOfTextAtSize(setTieBreak, smallSize);
+      if (offset && offset + cellWidth > maxWidth) { line++; offset = 0; }
+      const cell = { text, setTieBreak, mainWidth, line, offset };
+      offset += cellWidth + gap;
+      return cell;
+    });
+    return {
+      height: (line + 1) * leading + 3,
+      draw(x: number) {
+        let currentLine = -1;
+        for (const cell of cells) {
+          if (cell.line !== currentLine) {
+            if (currentLine >= 0) y -= leading;
+            ensure(leading);
+            currentLine = cell.line;
+          }
+          const left = x + cell.offset;
+          const baseline = y - size;
+          page.drawText(cell.text, { x: left, y: baseline, font, size, color });
+          if (cell.setTieBreak) page.drawText(cell.setTieBreak, { x: left + cell.mainWidth, y: baseline, font, size: smallSize, color });
+        }
+        y -= leading + 3;
+      },
+    };
+  }
+  function summary(lead: string | readonly ResultPart[], details: readonly string[]) {
     const inset = 13;
-    const blocks = [
-      layout([lead, 'lead', 3], contentWidth - inset * 2),
-      ...details.map(detail => layout([detail, 'caption'], contentWidth - inset * 2)),
-    ];
-    const panelHeight = blocks.reduce((space, block) => space + block.height, 22);
+    const maxWidth = contentWidth - inset * 2;
+    const plainLead = typeof lead === 'string' ? layout([lead, 'lead', 3], maxWidth) : null;
+    const resultLead = typeof lead === 'string' ? null : layoutResult(lead, maxWidth);
+    const blocks = details.map(detail => layout([detail, 'caption'], maxWidth));
+    const panelHeight = blocks.reduce((space, block) => space + block.height, 22 + (plainLead?.height ?? resultLead?.height ?? 0));
+    const drawLead = (x: number) => plainLead ? draw(plainLead, x) : resultLead?.draw(x);
     if (panelHeight > top - bottom) {
-      group([[lead, 'lead', 3], ...details.map((detail): TextBlock => [detail, 'caption', 3])]);
+      drawLead(left);
+      blocks.forEach(block => draw(block));
       return;
     }
     ensure(panelHeight);
     page.drawRectangle({ x: left, y: y - panelHeight, width: contentWidth, height: panelHeight, color: soft });
     page.drawRectangle({ x: left, y: y - panelHeight, width: 2, height: panelHeight, color: court });
     y -= 11;
+    drawLead(left + inset);
     blocks.forEach(block => draw(block, left + inset));
     y -= 27;
   }
@@ -243,7 +280,7 @@ export function createMatchPDF(record: MatchRecord, fonts: ReportFonts): Promise
     group([[title, 'title', 5], [metadata, 'body', 14]]);
     const status = score.winner !== null ? `${record.players[score.winner].name} wins${score.status === 'retired' ? ' by retirement' : ''}` : score.status === 'abandoned' ? 'Abandoned without a winner' : score.status === 'suspended' ? 'Match paused' : 'In progress';
     const times = timingLabels(timing);
-    summary(resultLabel(score), [`${status} · ${record.format.name}`, ...(times.length ? [times.join(' · ')] : [])]);
+    summary(resultParts(score), [`${status} · ${record.format.name}`, ...(times.length ? [times.join(' · ')] : [])]);
     for (const side of [0, 1] as const) playerTable(record.players[side].name, stats.players[side]);
     const coverage: TextBlock[] = [[`Aces count as serve winners. Double faults count as unforced serve errors. Endings recorded ${stats.coverage.endings}/${stats.coverage.points} · Strokes recorded ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.`, 'caption', 8]];
     if (hasScoreCorrections) coverage.push(['The score includes manual corrections. Statistics use observed points only.', 'caption', 8]);

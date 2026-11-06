@@ -2,7 +2,7 @@ import React from 'react';
 import { Image, Text, View, useWindowDimensions } from 'react-native';
 import { replayMatch } from '../domain/history.ts';
 import type { MatchScore } from '../domain/scoring.ts';
-import { resultLabel } from '../reports/report.ts';
+import { resultLabel, resultParts } from '../reports/report.ts';
 import type { MatchGroup } from '../storage/matchGroups.ts';
 import type { MatchRecord, PlayerProfile } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
@@ -115,7 +115,12 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
             style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.bg, paddingHorizontal: 12, paddingVertical: 12 }}>
             <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
               <T bold style={{ fontSize: 16, lineHeight: 22 }}>{title}</T>
-              {result && <Text style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 26, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>{result}</Text>}
+              {projection && <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10 }}>
+                {resultParts(projection.score).map(({ score, setTieBreak }, index) =>
+                  <Text key={index} style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 26, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>
+                    {score}{setTieBreak && <Text style={{ fontSize: 14 }}>{setTieBreak}</Text>}
+                  </Text>)}
+              </View>}
               <T small muted>{match.date}{pointCount === undefined ? '' : ` · ${pointCount} ${pointCount === 1 ? 'recorded point' : 'recorded points'}`}</T>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>

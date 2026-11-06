@@ -517,7 +517,7 @@ function Main() {
     && height >= 720 && fontScale <= 1.3;
   const showRecordingNotes = tab === 'record' && (projection?.score.status === 'in-progress' || projection?.score.status === 'suspended');
   const scoreboard = record && projection && <Scoreboard
-    record={record} score={projection.score} timing={projection.timing} showPointStakes={tab === 'record'} busy={busy}
+    record={record} score={projection.score} timing={projection.timing} showPointStakes={tab === 'record'} showSetTieBreaks={tab === 'report'} busy={busy}
     toggleServer={tab === 'record' ? togglePointServer : undefined}
     correctScore={tab === 'record' && !record.draft.pending ? () => { setError(''); setPanel({ kind: 'correct' }); } : undefined}
   />;

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { MatchTiming } from '../domain/history.ts';
 import { pointLabels, pointStakes } from '../domain/scoring.ts';
-import type { MatchScore, PointStake } from '../domain/scoring.ts';
+import type { MatchScore, PointStake, Side } from '../domain/scoring.ts';
+import { setTieBreakLabel } from '../reports/report.ts';
 import type { MatchRecord } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
 import { Button, Card, PlayerBadge, T, useTheme } from './kit.tsx';
@@ -29,17 +30,27 @@ function MatchClock({ playingMs, runningSinceMs }: { playingMs: number; runningS
   </Text>;
 }
 
-export function Scoreboard({ record, score, timing, toggleServer, correctScore, showPointStakes, busy }: {
+export function Scoreboard({ record, score, timing, toggleServer, correctScore, showPointStakes, showSetTieBreaks, busy }: {
   record: MatchRecord;
   score: MatchScore;
   timing: MatchTiming | null;
   toggleServer: (() => void) | undefined;
   correctScore: (() => void) | undefined;
   showPointStakes: boolean;
+  showSetTieBreaks: boolean;
   busy: boolean;
 }) {
-  const c = useTheme(); const columns: { label: string; values: readonly [string, string]; large: boolean }[] = [];
-  for (const [i, result] of score.completedStages.entries()) columns.push({ label: result.kind === 'set' ? `Set ${i + 1}` : 'MTB', values: (result.kind === 'set' ? result.games : result.points).map(String) as [string, string], large: false });
+  type Column = { label: string; values: readonly [string, string]; large: boolean; tieBreak?: { label: string; winner: Side } };
+  const c = useTheme(); const columns: Column[] = [];
+  for (const [i, result] of score.completedStages.entries()) {
+    const label = showSetTieBreaks ? setTieBreakLabel(result) : '';
+    columns.push({
+      label: result.kind === 'set' ? `Set ${i + 1}` : 'MTB',
+      values: (result.kind === 'set' ? result.games : result.points).map(String) as [string, string],
+      large: false,
+      ...(label ? { tieBreak: { label, winner: result.winner } } : {}),
+    });
+  }
   if (score.current) {
     if (score.current.phase === 'match-tie-break') columns.push({ label: 'MTB', values: pointLabels(score), large: true });
     else { columns.push({ label: `Set ${score.current.index + 1}`, values: score.current.games.map(String) as [string, string], large: false }); columns.push({ label: 'Points', values: pointLabels(score), large: true }); }
@@ -52,7 +63,7 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
     : score.winner !== null
       ? `${record.players[score.winner].name} wins${score.status === 'retired' ? ' by retirement' : ''}`
       : score.status === 'abandoned' ? 'Abandoned · no winner' : 'Match paused';
-  const scoreWidth = (large: boolean) => large ? 50 : 35;
+  const scoreWidth = (col: Column) => col.large ? 50 : col.tieBreak ? Math.max(35, 14 + col.tieBreak.label.length * 6) : 35;
   const row = { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 };
 
   return <Card style={{ backgroundColor: c.court, borderColor: c.courtLine, paddingHorizontal: 13, paddingVertical: 8, gap: 3, overflow: 'hidden' }}>
@@ -65,7 +76,7 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
     </View>
     <View style={{ ...row, justifyContent: 'flex-end' }}>
       {columns.map((col, i) => <Text key={i} style={{
-        width: scoreWidth(col.large), textAlign: 'center', color: col.large ? c.lime : c.courtSub, fontSize: 11,
+        width: scoreWidth(col), textAlign: 'center', color: col.large ? c.lime : c.courtSub, fontSize: 11,
         fontWeight: col.large ? '700' : '500',
       }}>{col.label}</Text>)}
     </View>
@@ -74,15 +85,18 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
         <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: serving === side ? c.lime : 'transparent' }} />
         <PlayerBadge side={side} numberOfLines={2} style={{ alignSelf: 'center' }}>{record.players[side].name}</PlayerBadge>
       </View>
-      {columns.map((col, i) => <View key={i} style={{
-        width: scoreWidth(col.large), minHeight: 34, justifyContent: 'center', borderRadius: 8,
-        backgroundColor: col.large ? c.lime : 'transparent',
-      }}>
-        <Text testID={`score-${side}-${i}`} accessibilityLabel={`${record.players[side].name}, ${col.label}, ${col.values[side]}`} style={{
-          textAlign: 'center', color: col.large ? c.limeInk : c.courtInk, fontSize: col.large ? 26 : 19,
-          fontWeight: col.large ? '700' : '500', fontVariant: ['tabular-nums'],
-        }}>{col.values[side]}</Text>
-      </View>)}
+      {columns.map((col, i) => {
+        const tieBreak = col.tieBreak && col.tieBreak.winner !== side ? col.tieBreak.label : '';
+        return <View key={i} style={{
+          width: scoreWidth(col), minHeight: 34, justifyContent: 'center', borderRadius: 8,
+          backgroundColor: col.large ? c.lime : 'transparent',
+        }}>
+          <Text testID={`score-${side}-${i}`} accessibilityLabel={`${record.players[side].name}, ${col.label}, ${col.values[side]}${tieBreak}`} style={{
+            textAlign: 'center', color: col.large ? c.limeInk : c.courtInk, fontSize: col.large ? 26 : 19,
+            fontWeight: col.large ? '700' : '500', fontVariant: ['tabular-nums'],
+          }}>{col.values[side]}{tieBreak && <Text style={{ fontSize: 11 }}>{tieBreak}</Text>}</Text>
+        </View>;
+      })}
     </View>)}
     {stakes?.some(labels => labels.length > 0) && <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
       {([0, 1] as const).map(side => stakes[side].length > 0 && <View key={side} style={{ maxWidth: '100%', backgroundColor: c.lime, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2 }}>

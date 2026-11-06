@@ -38,11 +38,23 @@ export function pointEndingLabel(point: RecordedPoint, names: readonly [string, 
   if (point.actor === null) return 'Ending not recorded';
   return [names[point.actor], endingNames[point.ending], point.stroke ? strokeNames[point.stroke] : ''].filter(Boolean).join(' · ');
 }
-export function stageLabel(result: StageResult): string { return result.kind === 'set' ? result.games.join('–') : `[${result.points.join('–')}]`; }
+export interface ResultPart { score: string; setTieBreak: string }
+export function setTieBreakLabel(result: StageResult): string {
+  return result.kind === 'set' && result.tieBreakPoints ? `[${Math.min(...result.tieBreakPoints)}]` : '';
+}
+export function resultParts(score: MatchScore): ResultPart[] {
+  const parts = score.completedStages.map(result => ({
+    score: (result.kind === 'set' ? result.games : result.points).join('–'),
+    setTieBreak: setTieBreakLabel(result),
+  }));
+  if (score.current) parts.push({
+    score: (score.current.phase === 'match-tie-break' ? score.current.points : score.current.games).join('–'),
+    setTieBreak: '',
+  });
+  return parts.length ? parts : [{ score: '0–0', setTieBreak: '' }];
+}
 export function resultLabel(score: MatchScore): string {
-  const completed = score.completedStages.map(stageLabel);
-  if (score.current) completed.push(score.current.phase === 'match-tie-break' ? `[${score.current.points.join('–')}]` : score.current.games.join('–'));
-  return completed.join('  ') || '0–0';
+  return resultParts(score).map(part => part.score + part.setTieBreak).join('  ');
 }
 export function timingLabels(timing: MatchTiming | null): string[] {
   if (!timing) return [];
@@ -90,7 +102,7 @@ export function reportHTML(record: MatchRecord): string {
   }).join('');
   const matchNotes = record.matchNotes?.trim();
   const status = score.winner !== null ? `${record.players[score.winner].name} won${score.status === 'retired' ? ' by retirement' : ''}` : score.status === 'abandoned' ? 'Abandoned without a winner' : score.status === 'suspended' ? 'Suspended' : 'In progress';
-  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:18mm}body{font:12px system-ui,sans-serif;color:#172d24}h1{font-size:24px;margin-bottom:6px}h2{font-size:17px;margin:22px 0 8px}p{line-height:1.5;color:#43594e}table{border-collapse:collapse;width:100%;break-inside:avoid}th,td{padding:8px;border-bottom:1px solid #cbd8cf;text-align:center}th:first-child{text-align:left}li{margin-bottom:10px;line-height:1.5}.score{font-size:22px;font-weight:600}.match-notes{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><h1>${e(record.players[0].name)} vs ${e(record.players[1].name)}</h1><p>${[record.date, record.group, record.round, record.venue, record.surface, record.courtSetting, record.conditions].filter(Boolean).map(e).join(' · ')}</p><div class="score">${e(resultLabel(score))}</div><p>${e(status)} · ${e(record.format.name)}</p>${times.length ? `<p>${times.map(e).join(' · ')}</p>` : ''}<h2>Winners and errors by stroke</h2>${tables}<p>Aces count as serve winners. Double faults count as unforced serve errors. Endings recorded: ${stats.coverage.endings}/${stats.coverage.points}; stroke recorded: ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.${hasScoreCorrections ? ' The score contains manual corrections; point statistics cover recorded points only.' : ''}</p>${pressure}${matchNotes ? `<h2>Match notes</h2><p class="match-notes">${e(matchNotes)}</p>` : ''}${summary ? '<h2>Point notes summary</h2>' + summary : ''}${notes ? '<h2>Notes and notable points</h2><p>Scores follow the player order above.</p><ul>' + notes + '</ul>' : ''}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:18mm}body{font:12px system-ui,sans-serif;color:#172d24}h1{font-size:24px;margin-bottom:6px}h2{font-size:17px;margin:22px 0 8px}p{line-height:1.5;color:#43594e}table{border-collapse:collapse;width:100%;break-inside:avoid}th,td{padding:8px;border-bottom:1px solid #cbd8cf;text-align:center}th:first-child{text-align:left}li{margin-bottom:10px;line-height:1.5}.score{font-size:22px;font-weight:600}.score small{font-size:65%}.match-notes{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><h1>${e(record.players[0].name)} vs ${e(record.players[1].name)}</h1><p>${[record.date, record.group, record.round, record.venue, record.surface, record.courtSetting, record.conditions].filter(Boolean).map(e).join(' · ')}</p><div class="score">${resultParts(score).map(part => e(part.score) + (part.setTieBreak ? `<small>${e(part.setTieBreak)}</small>` : '')).join(' &nbsp; ')}</div><p>${e(status)} · ${e(record.format.name)}</p>${times.length ? `<p>${times.map(e).join(' · ')}</p>` : ''}<h2>Winners and errors by stroke</h2>${tables}<p>Aces count as serve winners. Double faults count as unforced serve errors. Endings recorded: ${stats.coverage.endings}/${stats.coverage.points}; stroke recorded: ${stats.coverage.strokes}/${stats.coverage.endings} classified endings.${hasScoreCorrections ? ' The score contains manual corrections; point statistics cover recorded points only.' : ''}</p>${pressure}${matchNotes ? `<h2>Match notes</h2><p class="match-notes">${e(matchNotes)}</p>` : ''}${summary ? '<h2>Point notes summary</h2>' + summary : ''}${notes ? '<h2>Notes and notable points</h2><p>Scores follow the player order above.</p><ul>' + notes + '</ul>' : ''}</body></html>`;
 }
 function csvCell(value: unknown): string {
   let text = String(value ?? '');
