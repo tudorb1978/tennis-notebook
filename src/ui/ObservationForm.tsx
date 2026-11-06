@@ -58,7 +58,7 @@ export function PointNotesEditor({ input, names, busy, onSave }: {
       <View style={{ gap: 7 }}>
         <T small bold>Rally length</T>
         <Row>
-          {(['long', 'very-long'] as const).map(length => <Toggle key={length} label={rallyLengthLabels[length]}
+          {(['long', 'very-long'] as const).map(length => <Toggle key={length} label={rallyLengthLabels[length]} style={{ maxWidth: '100%' }}
             checked={rally === length} disabled={busy} onChange={checked => set('rallyLength', checked ? length : null)} />)}
         </Row>
       </View>
