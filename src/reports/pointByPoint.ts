@@ -2,6 +2,7 @@ import type { MatchProjection } from '../domain/history.ts';
 import { summarisePoints } from '../domain/points.ts';
 import type { RecordedPoint } from '../domain/points.ts';
 import { stagePointLabels } from '../domain/scoring.ts';
+import type { Side } from '../domain/scoring.ts';
 import { pointNoteDetails } from './pointNotes.ts';
 import type { PointNoteDetail } from './pointNotes.ts';
 import { pointEndingLabel, pointScoreBefore, setTieBreakLabel, strokeNames } from './report.ts';
@@ -9,7 +10,7 @@ import { pointEndingLabel, pointScoreBefore, setTieBreakLabel, strokeNames } fro
 export interface PointByPointEntry {
   number: number;
   scoreBefore: string;
-  winner: string;
+  winnerSide: Side;
   ending: string;
   serve: string;
   pressure: string[];
@@ -47,7 +48,7 @@ function pointEntry(point: RecordedPoint, number: number, names: readonly [strin
   return {
     number,
     scoreBefore: pointScoreBefore(point, true),
-    winner: names[point.winner],
+    winnerSide: point.winner,
     ending: pointEndingLabel(point, names),
     serve: serveDescription(point, names),
     pressure: point.stakes.flatMap((stakes, side) => stakes

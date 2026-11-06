@@ -5,6 +5,7 @@ import { strokes } from '../domain/points.ts';
 import type { PlayerStats } from '../domain/points.ts';
 import { pointNoteSummary } from './pointNotes.ts';
 import { buildPointByPoint } from './pointByPoint.ts';
+import type { PointByPointStage } from './pointByPoint.ts';
 import { pressurePointExplanation, pressurePointGroups, replayMatchForReport, resultParts, strokeNames, timingLabels } from './report.ts';
 import type { ResultPart } from './report.ts';
 import { performanceCountLabels } from './playerPerformance.ts';
@@ -18,7 +19,7 @@ export interface ReportAssets {
   wordmark: Uint8Array;
 }
 export type MatchPDFVariant = 'summary' | 'point-by-point' | 'combined';
-type TextRole = 'title' | 'lead' | 'heading' | 'subheading' | 'body' | 'caption' | 'tableHeader' | 'tableBody' | 'tableTotal'
+type TextRole = 'title' | 'lead' | 'heading' | 'subheading' | 'body' | 'caption' | 'tableHeader' | 'tableBody' | 'tableTotal' | 'pointResult'
   | 'positive' | 'negative' | 'rally';
 type TextBlock = readonly [text: string, role: TextRole, gapAfter?: number];
 type RowTone = 'header' | 'labels' | 'plain' | 'stripe' | 'total';
@@ -32,7 +33,7 @@ interface ReportWriter {
   pressurePoints: (names: readonly string[], stats: readonly PlayerStats[]) => void;
   matchNotes: (notes: string) => void;
   notesSummary: (summary: ReturnType<typeof pointNoteSummary>) => void;
-  pointNote: (details: readonly TextBlock[], notes: string, intro?: readonly TextBlock[]) => void;
+  pointTable: (stage: PointByPointStage, intro: readonly TextBlock[]) => void;
 }
 
 function observedRate(inPlay: number, observed: number) {
@@ -65,6 +66,8 @@ async function createReportPDF(title: string, kind: string, assets: ReportAssets
   const soft = rgb(.92, .95, .90);
   const stripe = rgb(.97, .98, .97);
   const white = rgb(1, 1, 1);
+  const green = rgb(.13, .36, .20);
+  const blue = rgb(.15, .32, .56);
   const playerFills = [
     { labels: rgb(.88, .93, .84), plain: rgb(.96, .98, .94), stripe: rgb(.93, .96, .90), total: rgb(.88, .93, .84) },
     { labels: rgb(.87, .92, .95), plain: rgb(.95, .97, .99), stripe: rgb(.92, .95, .97), total: rgb(.87, .92, .95) },
@@ -79,9 +82,10 @@ async function createReportPDF(title: string, kind: string, assets: ReportAssets
     tableHeader: { font: bold, color: white, size: 9, leading: 13 },
     tableBody: { font: regular, color: ink, size: 9, leading: 13 },
     tableTotal: { font: bold, color: ink, size: 9, leading: 13 },
-    positive: { font: bold, color: rgb(.13, .36, .20), size: 9, leading: 13 },
+    pointResult: { font: bold, color: ink, size: 16, leading: 19 },
+    positive: { font: bold, color: green, size: 9, leading: 13 },
     negative: { font: bold, color: rgb(.58, .21, .16), size: 9, leading: 13 },
-    rally: { font: bold, color: rgb(.15, .32, .56), size: 9, leading: 13 },
+    rally: { font: bold, color: blue, size: 9, leading: 13 },
   };
   const width = 595.28, height = 841.89, left = 44, contentWidth = width - left * 2;
   const top = height - 72, bottom = 52;
@@ -202,7 +206,7 @@ async function createReportPDF(title: string, kind: string, assets: ReportAssets
     const height = Math.max(...blocks.map(block => block.height)) + 5;
     return { blocks, widths, tone, height, padding };
   }
-  function drawTableRow({ blocks, widths, tone, height, padding }: ReturnType<typeof tableRow>, players?: readonly (number | null)[]) {
+  function drawTableRow({ blocks, widths, tone, height, padding }: ReturnType<typeof tableRow>, players?: readonly (number | null)[], leftAligned: readonly number[] = [0]) {
     const fill = { header: court, labels: soft, plain: white, stripe, total: soft }[tone];
     let x = left;
     for (const [index, block] of blocks.entries()) {
@@ -217,7 +221,7 @@ async function createReportPDF(title: string, kind: string, assets: ReportAssets
       }
       let baseline = y - (height - block.height) / 2 - size;
       for (const text of lines) {
-        if (text) page.drawText(text, { x: index === 0 ? x + padding : x + (cellWidth - font.widthOfTextAtSize(text, size)) / 2, y: baseline, font, size, color });
+        if (text) page.drawText(text, { x: leftAligned.includes(index) ? x + padding : x + (cellWidth - font.widthOfTextAtSize(text, size)) / 2, y: baseline, font, size, color });
         baseline -= leading;
       }
       x += cellWidth;
@@ -337,26 +341,97 @@ async function createReportPDF(title: string, kind: string, assets: ReportAssets
     draw(title);
     draw(body);
   }
-  function pointNote(details: readonly TextBlock[], notes: string, intro: readonly TextBlock[] = []) {
+  function pointTable(stage: PointByPointStage, intro: readonly TextBlock[]) {
+    const numberWidth = 44, scoreWidth = 96, resultWidth = 46, inset = 8, verticalPadding = 5;
+    const columns = [left, left + numberWidth, left + numberWidth + scoreWidth, left + numberWidth + scoreWidth + resultWidth];
+    const descriptionX = columns[3]!;
+    const detailsWidth = contentWidth - numberWidth - scoreWidth - resultWidth;
+    const header = tableRow(['No.', 'Score', 'W/L', `Point description · ${stage.title}`],
+      [numberWidth, scoreWidth, resultWidth, detailsWidth], 'header', inset);
+    const drawHeader = () => drawTableRow(header, [null, null, null, null], [3]);
     const introduction = intro.map(part => layout(part));
-    const blocks = details.map(part => layout(part));
-    const body = notes ? layout([notes, 'body']) : null;
-    const detailsHeight = [...introduction, ...blocks].reduce((space, block) => space + block.height, 5);
-    const pointHeight = detailsHeight + (body?.height ?? 0);
-    ensure(pointHeight <= top - bottom ? pointHeight : detailsHeight + (body?.leading ?? 0));
-    introduction.forEach(block => draw(block));
-    rule(page, y);
-    y -= 5;
-    blocks.forEach(block => draw(block));
-    if (body) draw(body);
-    y -= 5;
+    const introHeight = introduction.reduce((sum, block) => sum + block.height, 0);
+    const continuedLabel = layout(['Continued', 'caption']);
+
+    for (const [index, point] of stage.points.entries()) {
+      const won = point.winnerSide === 0;
+      const color = won ? green : blue;
+      const cells = [
+        layout([String(point.number), 'tableTotal'], numberWidth - 2 * inset),
+        layout([point.scoreBefore, 'tableTotal'], scoreWidth - 2 * inset),
+        layout([won ? 'W' : 'L', 'pointResult'], resultWidth - 2 * inset),
+      ].map(cell => ({ ...cell, color }));
+      const summaryHeight = Math.max(...cells.map(cell => cell.height));
+      const details: TextBlock[] = [
+        [`${point.ending} · ${point.serve}`, 'tableBody'],
+      ];
+      if (point.pressure.length) details.push([point.pressure.join(' · '), 'tableTotal']);
+      for (const tone of ['rally', 'positive', 'negative', 'neutral'] as const) {
+        const labels = point.labels.filter(label => label.tone === tone).map(label => label.text);
+        if (labels.length) details.push([labels.join('  ·  '), tone === 'neutral' ? 'caption' : tone]);
+      }
+      if (point.notes) details.push([point.notes, 'body']);
+      const blocks = details.map(detail => layout(detail, detailsWidth - 2 * inset));
+      const detailsHeight = blocks.reduce((sum, block) => sum + block.height, 0);
+      const detailLines = blocks.flatMap(block => block.lines.map(text => ({ ...block, lines: [text], gap: 0, height: block.leading })));
+      const rowHeight = Math.max(summaryHeight, detailsHeight) + 2 * verticalPadding;
+      const headingHeight = index === 0 ? introHeight : 0;
+      const roomOnFreshPage = top - bottom - header.height - headingHeight;
+      const openingLinesHeight = detailLines.slice(0, 3).reduce((sum, block) => sum + block.height, 0);
+      const minimumHeight = Math.max(summaryHeight, openingLinesHeight) + 2 * verticalPadding;
+      const requiredHeight = rowHeight <= roomOnFreshPage ? rowHeight : minimumHeight;
+      let needsHeader = index === 0;
+      if (y - bottom - headingHeight - (needsHeader ? header.height : 0) < requiredHeight) {
+        newPage();
+        needsHeader = true;
+      }
+      if (index === 0) introduction.forEach(block => draw(block));
+      if (needsHeader) drawHeader();
+
+      // Keep normal rows together and carry long notes onto the next page.
+      let start = 0;
+      while (start < detailLines.length) {
+        const room = y - bottom - 2 * verticalPadding;
+        let end = start;
+        let textHeight = start > 0 ? continuedLabel.height : 0;
+        while (end < detailLines.length) {
+          const nextLine = detailLines[end]!;
+          if (textHeight + nextLine.leading > room) break;
+          textHeight += nextLine.leading;
+          end++;
+        }
+        const rowTop = y;
+        const segmentHeight = Math.max(summaryHeight, textHeight) + 2 * verticalPadding;
+        const rowBottom = rowTop - segmentHeight;
+        const contentTop = rowTop - verticalPadding;
+        for (const divider of columns.slice(1)) {
+          page.drawLine({ start: { x: divider, y: rowTop }, end: { x: divider, y: rowBottom }, thickness: .6, color: line });
+        }
+        for (const [column, cell] of cells.entries()) {
+          const width = Math.max(...cell.lines.map(text => cell.font.widthOfTextAtSize(text, cell.size)));
+          y = contentTop - (summaryHeight - cell.height) / 2;
+          draw(cell, (columns[column]! + columns[column + 1]! - width) / 2);
+        }
+        y = contentTop - Math.max(0, (summaryHeight - textHeight) / 2);
+        if (start > 0) draw(continuedLabel, descriptionX + inset);
+        detailLines.slice(start, end).forEach(block => draw(block, descriptionX + inset));
+        y = rowBottom;
+        rule(page, y);
+        start = end;
+        if (start < detailLines.length) {
+          newPage();
+          drawHeader();
+        }
+      }
+    }
+    y -= 10;
   }
 
   doc.setTitle(title);
   doc.setCreator('Tennis Notebook');
   doc.setProducer('Tennis Notebook');
   newPage();
-  render({ group, summary, playerTable, statsTable, strokeTable, pressurePoints, matchNotes, notesSummary, pointNote });
+  render({ group, summary, playerTable, statsTable, strokeTable, pressurePoints, matchNotes, notesSummary, pointTable });
   for (const [index, item] of doc.getPages().entries()) {
     const number = `Page ${index + 1} of ${doc.getPageCount()}`;
     rule(item, 39);
@@ -373,7 +448,7 @@ const reportKinds: Record<MatchPDFVariant, string> = {
 
 export function createMatchPDF(record: MatchRecord, assets: ReportAssets, variant: MatchPDFVariant = 'combined'): Promise<Uint8Array> {
   const title = `${record.players[0].name} vs ${record.players[1].name}`;
-  return createReportPDF(title, reportKinds[variant], assets, ({ group, summary, statsTable, strokeTable, pressurePoints, matchNotes, notesSummary, pointNote }) => {
+  return createReportPDF(title, reportKinds[variant], assets, ({ group, summary, statsTable, strokeTable, pressurePoints, matchNotes, notesSummary, pointTable }) => {
     const projection = replayMatchForReport(record);
     const { score, stats, points, hasScoreCorrections, timing } = projection;
     const names = [record.players[0].name, record.players[1].name] as const;
@@ -400,7 +475,7 @@ export function createMatchPDF(record: MatchRecord, assets: ReportAssets, varian
     const stages = buildPointByPoint(projection, names);
     const logIntro: TextBlock[] = [
       ['Point by point', 'heading', 4],
-      [`Scores are shown before each point, with ${names[0]} first and ${names[1]} second.`, 'caption', 8],
+      [`Scores are shown before each point, with ${names[0]} first. Green W and blue L show whether ${names[0]} won or lost the point.`, 'caption', 8],
     ];
     if (!stages.length) {
       group([...logIntro, ['No points recorded yet.', 'body']]);
@@ -412,19 +487,8 @@ export function createMatchPDF(record: MatchRecord, assets: ReportAssets, varian
         [stage.title, 'heading', 4],
         [stage.status === 'completed' ? `${stage.points.length} recorded points` : `${stage.points.length} recorded points · ${stage.status === 'in-progress' ? 'In progress' : stage.status === 'paused' ? 'Paused' : 'Unfinished'}`, 'caption', 7],
       ];
-      for (const [pointIndex, point] of stage.points.entries()) {
-        const details: TextBlock[] = [
-          [`${point.number}. ${point.scoreBefore}  ·  ${point.winner} won`, 'subheading'],
-          [`${point.ending}  ·  ${point.serve}`, 'caption'],
-        ];
-        if (point.pressure.length) details.push([point.pressure.join(' · '), 'tableTotal']);
-        for (const tone of ['rally', 'positive', 'negative', 'neutral'] as const) {
-          const labels = point.labels.filter(label => label.tone === tone).map(label => label.text);
-          if (labels.length) details.push([labels.join('  ·  '), tone === 'neutral' ? 'caption' : tone]);
-        }
-        pointNote(details, point.notes, pointIndex === 0 ? intro : undefined);
-      }
       if (stage.points.length) {
+        pointTable(stage, intro);
         statsTable(`${stage.title} stats`, names, stage.stats.players, true);
       } else {
         group([...intro, ['No points were recorded for this stage.', 'body', 14]]);

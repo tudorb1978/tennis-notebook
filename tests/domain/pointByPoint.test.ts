@@ -32,8 +32,8 @@ test('Point-by-point reports preserve point order, stage scores and the recorded
   ]);
   assert.deepEqual(stages[0]?.points[0], {
     number: 1,
-    scoreBefore: 'Games 3–3 · Tie-break 6–5',
-    winner: 'Stefan',
+    scoreBefore: '3–3 6–5',
+    winnerSide: 0,
     ending: 'Stefan · Winner · Forehand',
     serve: 'Stefan served out of turn · First serve fault · Second serve in · Return in (backhand)',
     pressure: ['Set point for Stefan'],
@@ -46,6 +46,9 @@ test('Point-by-point reports preserve point order, stage scores and the recorded
     ],
     notes: 'Recovered after chasing a drop shot.',
   });
+  assert.equal(stages[1]?.points[0]?.scoreBefore, '2–3 30–40');
+  assert.equal(stages[1]?.points[0]?.winnerSide, 1);
+  assert.equal(stages[2]?.points[0]?.scoreBefore, '9–8');
   assert.deepEqual(stages.map(stage => stage.stats.players.map(player => player.pointsWon)), [[1, 0], [0, 1], [1, 0]]);
   assert.equal(stages[2]?.stats.players[1].byStroke.serve.unforcedErrors, 1);
 });
