@@ -108,7 +108,7 @@ try:
     wait_for(text='30')
     print('PASS Cold start without network restores the score and pending stroke; recording continues', flush=True)
 
-    tap(text='Add notes', scroll=True)
+    tap(label='Add notes', scroll=True)
     tap(text='Notes', scroll=True)
     # Notes is the only multiline editable field in this sheet.
     editable = [n for n in nodes() if n.attrib.get('class') == 'android.widget.EditText']

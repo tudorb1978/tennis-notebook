@@ -216,15 +216,9 @@ function Main() {
 
   const openPointPanel = (kind: PointPanel, id: string) => { setError(''); setPanel({ kind, id }); };
   const openMatchNotes = () => { setError(''); setPanel({ kind: 'match-notes' }); };
-  const pointActions = (id: string, observations?: PointObservations, previous = false) => <Row style={{ gap: 6 }}>
-    <Button quiet={!previous} compact={previous} {...(previous ? { icon: 'edit' as const } : {})} disabled={busy} onPress={() => openPointPanel('edit-point', id)}>Edit point</Button>
-    <Button quiet={!previous} compact={previous} {...(previous ? { icon: 'note' as const } : {})} disabled={busy} onPress={() => openPointPanel('point-notes', id)}>{hasPointNotes(observations) ? 'Edit notes' : 'Add notes'}</Button>
-    {previous && <Button compact label="Delete last point" disabled={busy || !projection?.canDeleteLastPoint} onPress={() => openPointPanel('delete-point', id)}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-        <Icon name="trash" color={c.error} size={15} />
-        <T small bold style={{ color: c.error }}>Delete</T>
-      </View>
-    </Button>}
+  const pointActions = (id: string, observations?: PointObservations) => <Row style={{ gap: 6 }}>
+    <Button quiet disabled={busy} onPress={() => openPointPanel('edit-point', id)}>Edit point</Button>
+    <Button quiet disabled={busy} onPress={() => openPointPanel('point-notes', id)}>{hasPointNotes(observations) ? 'Edit notes' : 'Add notes'}</Button>
   </Row>;
   const saveSelectedPoint = (input: PointInput) => {
     if (!selectedEntry) return;
@@ -252,16 +246,31 @@ function Main() {
   function previousPoint() {
     const last = projection?.pointEntries.at(-1);
     if (!record || !last) return null;
-    return <Card style={{ backgroundColor: c.soft, paddingVertical: 8, gap: 6 }}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <View style={{ flexGrow: 1, flexBasis: 120 }}>
-          <T small bold>Previous point · {record.players[last.point.winner].name}</T>
-          <T small muted>{endingNames[last.point.ending]}{last.point.stroke ? ` · ${strokeNames[last.point.stroke]}` : ''}</T>
-        </View>
-        {pointActions(last.id, last.point.observations, true)}
-      </Row>
-      {!projection?.canDeleteLastPoint && <T small muted>Undo the later score correction to delete this point.</T>}
-    </Card>;
+    const actionStyle = { flex: 1, minWidth: 72, paddingHorizontal: 8 };
+    return <View style={{ marginTop: 8, borderTopWidth: 2, borderTopColor: c.line, paddingTop: 14 }}>
+      <Card style={{ backgroundColor: c.soft, padding: 12, gap: 8 }}>
+        <Row style={{ columnGap: 12, rowGap: 9 }}>
+          <View style={{ flexGrow: 1, flexBasis: 144, minWidth: 0 }}>
+            <T small bold>Previous point · {record.players[last.point.winner].name}</T>
+            <T small muted>{endingNames[last.point.ending]}{last.point.stroke ? ` · ${strokeNames[last.point.stroke]}` : ''}</T>
+          </View>
+          <Row style={{ flexGrow: 1, flexBasis: 232, maxWidth: 310, gap: 7, alignItems: 'stretch' }}>
+            <Button compact icon="edit" label="Edit point" style={actionStyle} disabled={busy}
+              onPress={() => openPointPanel('edit-point', last.id)}>Edit</Button>
+            <Button compact icon="note" label={hasPointNotes(last.point.observations) ? 'Edit notes' : 'Add notes'} style={actionStyle} disabled={busy}
+              onPress={() => openPointPanel('point-notes', last.id)}>Notes</Button>
+            <Button compact label="Delete last point" style={actionStyle} disabled={busy || !projection?.canDeleteLastPoint}
+              onPress={() => openPointPanel('delete-point', last.id)}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Icon name="trash" color={c.error} size={15} />
+                <T small bold style={{ color: c.error, flexShrink: 1, textAlign: 'center' }}>Delete</T>
+              </View>
+            </Button>
+          </Row>
+        </Row>
+        {!projection?.canDeleteLastPoint && <T small muted>Undo the later score correction to delete this point.</T>}
+      </Card>
+    </View>;
   }
 
   function live() {
