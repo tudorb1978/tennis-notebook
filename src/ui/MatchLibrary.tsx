@@ -44,6 +44,7 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
   })).filter(group => group.matches.length > 0);
   const hasEvents = groups.some(group => group.named);
   const selectedPlayer = players.find(player => player.id === filter);
+  const emptyMessage = selectedPlayer ? `No matches recorded yet for ${selectedPlayer.name}` : 'No matches recorded yet';
 
   return <Stack>
     <View style={{
@@ -83,9 +84,15 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
         {players.length > 0 && <Button quiet compact icon="chart" disabled={busy} onPress={() => onPerformance(null)}>Player performance</Button>}
       </Row>
       {players.length > 0 && <Choices compact label="Player" value={filter} options={[{ value: 'all', label: 'All players' }, ...players.map(player => ({ value: player.id, label: player.name }))]} onChange={onFilter} />}
-      {visibleGroups.length === 0 && <View style={{ backgroundColor: c.bg, borderRadius: 12, padding: 12 }}>
-        <T small muted>{selectedPlayer ? `No matches recorded yet for ${selectedPlayer.name}` : 'No matches recorded yet'}</T>
-      </View>}
+      {visibleGroups.length === 0 && <Button label={`${emptyMessage}. Start a new match`} disabled={busy || !available}
+        onPress={onNewMatch} style={{ backgroundColor: c.bg, paddingHorizontal: 10, paddingVertical: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+          <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: c.soft }}>
+            <Icon name="plus" color={c.accent} size={16} />
+          </View>
+          <T small bold style={{ flex: 1 }}>{emptyMessage}</T>
+        </View>
+      </Button>}
       {visibleGroups.map(({ group, matches }) => <View key={group.key} style={{ gap: 8, borderTopWidth: 1, borderColor: c.line, paddingTop: 8 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <View style={{ flex: 1, minWidth: 104 }}>
