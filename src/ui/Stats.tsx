@@ -5,7 +5,7 @@ import { strokes } from '../domain/points.ts';
 import type { PlayerStats } from '../domain/points.ts';
 import { pressurePointExplanation, pressurePointRows, strokeNames } from '../reports/report.ts';
 import { Icon } from './Icon.tsx';
-import { Card, PlayerBadge, T, useTheme } from './kit.tsx';
+import { Card, T, useTheme } from './kit.tsx';
 
 const strokeColumns = ['Winners', 'Unforced errors', 'Forced errors'] as const;
 const serveMetrics = [
@@ -79,35 +79,6 @@ export function StatsTable({ name, stats }: { name: string; stats: PlayerStats }
   </Card>;
 }
 
-export function MatchComparison({ names, stats }: {
-  names: readonly [string, string];
-  stats: readonly [PlayerStats, PlayerStats];
-}) {
-  const c = useTheme();
-  const metrics = [
-    { label: 'Points won', values: [stats[0].pointsWon, stats[1].pointsWon] },
-    { label: 'Aces', values: [stats[0].aces, stats[1].aces] },
-    { label: 'Double faults', values: [stats[0].doubleFaults, stats[1].doubleFaults] },
-  ];
-  return <Card style={{ gap: 12 }}>
-    <ReportCardHeading title="At a glance" icon="chart" />
-    <View style={[tableFrame, { borderColor: c.line }]}>
-      <View style={{ ...comparisonRow, backgroundColor: c.court, padding: 8 }}>
-        <View style={comparisonName}><PlayerBadge side={0} style={{ alignSelf: 'center' }}>{names[0]}</PlayerBadge></View>
-        <View style={comparisonLabel} />
-        <View style={comparisonName}><PlayerBadge side={1} style={{ alignSelf: 'center' }}>{names[1]}</PlayerBadge></View>
-      </View>
-      {metrics.map(({ label, values }, i) => <View key={label} style={{
-        ...comparisonRow, minHeight: 40, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: i % 2 === 1 ? c.bg : c.card,
-      }}>
-        <T bold style={comparisonSide}>{values[0]}</T>
-        <T small muted style={comparisonLabel}>{label}</T>
-        <T bold style={comparisonSide}>{values[1]}</T>
-      </View>)}
-    </View>
-  </Card>;
-}
-
 export function PressurePoints({ names, stats }: { names: readonly string[]; stats: readonly PlayerStats[] }) {
   const c = useTheme();
   const rows = pressurePointRows(stats);
@@ -136,5 +107,4 @@ export function PressurePoints({ names, stats }: { names: readonly string[]; sta
 const comparisonRow = { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 };
 const comparisonName = { flex: 1, minWidth: 0 };
 const comparisonSide = { ...comparisonName, textAlign: 'center' as const, fontVariant: ['tabular-nums'] };
-const comparisonLabel = { flex: 1.35, minWidth: 0, textAlign: 'center' as const };
 const tableFrame = { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' as const };

@@ -6,8 +6,12 @@ import { Icon } from './Icon.tsx';
 import type { IconName } from './Icon.tsx';
 
 const court = { court: '#15382b', courtInk: '#f6f9ef', courtSub: '#c4d6c7', courtLine: '#49675a', lime: '#e0f2ae', limeInk: '#183325' };
-const light = { ...court, bg: '#f4f5ed', card: '#ffffff', ink: '#192f25', sub: '#506257', line: '#d2dbcf', accent: '#214a38', on: '#ffffff', soft: '#e8f0dd', error: '#a22e28' };
-const dark = { ...court, bg: '#151e19', card: '#202b24', ink: '#edf4ed', sub: '#becdc1', line: '#495d50', accent: '#d5e8aa', on: '#172c1c', soft: '#2b4131', error: '#ffb4a8' };
+type ReportPlayerColors = { ink: string; header: string; tint: string };
+type ReportPlayers = readonly [ReportPlayerColors, ReportPlayerColors];
+const light = { ...court, bg: '#f4f5ed', card: '#ffffff', ink: '#192f25', sub: '#506257', line: '#d2dbcf', accent: '#214a38', on: '#ffffff', soft: '#e8f0dd', error: '#a22e28',
+  reportPlayers: [{ ink: '#235633', header: '#e1eed9', tint: '#f2f7ef' }, { ink: '#244f81', header: '#dfebf5', tint: '#f0f6fa' }] satisfies ReportPlayers };
+const dark = { ...court, bg: '#151e19', card: '#202b24', ink: '#edf4ed', sub: '#becdc1', line: '#495d50', accent: '#d5e8aa', on: '#172c1c', soft: '#2b4131', error: '#ffb4a8',
+  reportPlayers: [{ ink: '#b9e8bb', header: '#2f4937', tint: '#263b2e' }, { ink: '#c5dfff', header: '#314759', tint: '#273948' }] satisfies ReportPlayers };
 export type Palette = typeof light;
 const Theme = createContext(light);
 export function AppTheme({ children }: { children: React.ReactNode }) { const scheme = useColorScheme(); return <Theme.Provider value={scheme === 'dark' ? dark : light}>{children}</Theme.Provider>; }

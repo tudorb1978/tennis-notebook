@@ -18,8 +18,8 @@ import { groupMatches, matchEventKey } from './src/storage/matchGroups.ts';
 import type { MatchGroup } from './src/storage/matchGroups.ts';
 import { emptyDraft } from './src/storage/model.ts';
 import type { MatchDraft, MatchRecord, PlayerProfile, UnstartedMatchRecord } from './src/storage/model.ts';
-import { endingNames, pointEndingLabel, pointScoreBefore, reportCSV, strokeNames, timingLabels } from './src/reports/report.ts';
-import { pointNoteLabels, pointNoteSummary } from './src/reports/pointNotes.ts';
+import { endingNames, pointEndingLabel, reportCSV, strokeNames } from './src/reports/report.ts';
+import { pointNoteLabels } from './src/reports/pointNotes.ts';
 import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
 import type { MatchPDFVariant } from './src/reports/pdf.ts';
 import { AppTheme, Button, Card, Eyebrow, Heading, Notice, PlayerBadge, playerBadgeColors, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
@@ -29,7 +29,7 @@ import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
 import { OutcomeGuide, OutcomeHelpButton } from './src/ui/OutcomeGuide.tsx';
 import { Scoreboard } from './src/ui/Scoreboard.tsx';
 import { ServeRecordingCard } from './src/ui/ServeRecordingCard.tsx';
-import { MatchComparison, PressurePoints, StatsTable } from './src/ui/Stats.tsx';
+import { MatchReport } from './src/ui/MatchReport.tsx';
 import { PlayerPerformance } from './src/ui/PlayerPerformance.tsx';
 import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
 import { Icon } from './src/ui/Icon.tsx';
@@ -443,77 +443,6 @@ function Main() {
       </Card>}
     </Stack>;
   }
-  function report() {
-    if (!record || !projection) return null;
-    const times = timingLabels(projection.timing);
-    const context = [record.group, record.round, record.venue, record.surface, record.courtSetting, record.conditions].filter(Boolean).join(' · ');
-    const names = [record.players[0].name, record.players[1].name] as const;
-    const noteSummary = pointNoteSummary(projection.points, names);
-    const notablePoints = projection.pointEntries.filter(entry => hasPointNotes(entry.point.observations));
-    const matchNotes = record.matchNotes?.trim();
-    const { stats } = projection;
-
-    return <Stack>
-      <Card style={{ gap: 6 }}>
-        <Row><Icon name="report" color={c.accent} /><Eyebrow>Match analysis</Eyebrow></Row>
-        <Heading>Match report</Heading>
-        <T small muted>{record.date} · {record.format.name}</T>
-        {context ? <T small muted>{context}</T> : null}
-      </Card>
-      <Row style={{ alignItems: 'stretch' }}>
-        <Button primary icon="report" testID="match-pdf-export" disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'export-match-pdf' }); }}>PDF report</Button>
-        <Button icon="download" disabled={busy} onPress={() => void external(async () => { await shareText(`tennis-match-${record.id}.csv`, reportCSV(record), 'text/csv'); })}>Export points CSV</Button>
-      </Row>
-      <Card style={{ gap: 5 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Row><Icon name="note" color={c.accent} /><T bold>Match notes</T></Row>
-          <Button quiet compact disabled={busy} onPress={openMatchNotes}>{matchNotes ? 'Edit match notes' : 'Add match notes'}</Button>
-        </Row>
-        {matchNotes ? <T>{matchNotes}</T> : <T small muted>Add observations about the match as a whole.</T>}
-      </Card>
-      <MatchComparison names={names} stats={stats.players} />
-      <PressurePoints names={names} stats={stats.players} />
-      {times.length > 0 && <Card style={{ gap: 6 }}>
-        <T bold>Match timing</T>
-        {times.map(time => <T key={time} small muted>{time}</T>)}
-      </Card>}
-      <View style={{ gap: 4 }}>
-        <T bold style={{ fontSize: 19, lineHeight: 24 }}>Winners and errors by stroke</T>
-        <T small muted>Aces count as serve winners. Double faults count as unforced serve errors.</T>
-      </View>
-      {([0, 1] as const).map(side => <StatsTable key={side} name={names[side]} stats={stats.players[side]} />)}
-      <T small muted>Recorded endings {stats.coverage.endings}/{stats.coverage.points} · Recorded strokes {stats.coverage.strokes}/{stats.coverage.endings}</T>
-      {projection.hasScoreCorrections && <Notice>Manual score corrections leave gaps in point-based statistics.</Notice>}
-      {noteSummary.length > 0 && <Stack>
-        <View style={{ gap: 4 }}>
-          <T bold style={{ fontSize: 19, lineHeight: 24 }}>Point notes summary</T>
-          <T small muted>Counts are based on observations recorded during the match.</T>
-        </View>
-        {noteSummary.map(section => <Card key={section.title} style={{ gap: 7 }}>
-          <T bold>{section.title}</T>
-          {section.lines.map(line => <T key={line} small>{line}</T>)}
-        </Card>)}
-      </Stack>}
-      <View style={{ gap: 4 }}>
-        <T bold style={{ fontSize: 19, lineHeight: 24 }}>Notes and notable points</T>
-        <T small muted>{notablePoints.length ? 'Scores follow the player order on the scoreboard.' : 'Point notes will appear here as you add them.'}</T>
-      </View>
-      {notablePoints.map(({ id, point }) => {
-        const obs = point.observations!;
-        return <Card key={id} style={{ gap: 7 }}>
-          <View style={{ gap: 3 }}>
-            <T small muted>{pointScoreBefore(point)}</T>
-            <T bold>{names[point.winner]} won</T>
-            <T small>{pointEndingLabel(point, names)}</T>
-          </View>
-          {pointNoteLabels(obs, names).map(label => <T key={label} small>{label}</T>)}
-          {obs.notes ? <T small>{obs.notes}</T> : null}
-          {pointActions(id, obs)}
-        </Card>;
-      })}
-    </Stack>;
-  }
-
   function homeContent() {
     return <MatchLibrary
       groups={groups} players={players} filter={filter} busy={busy} available={repository.current !== null}
@@ -534,7 +463,7 @@ function Main() {
     && height >= 720 && fontScale <= 1.3;
   const showRecordingNotes = tab === 'record' && canRecord;
   const scoreboard = record && projection && <Scoreboard
-    record={record} score={projection.score} timing={projection.timing} showPointStakes={tab === 'record'} showSetTieBreaks={tab === 'report'} busy={busy}
+    record={record} score={projection.score} timing={projection.timing} showPointStakes={tab === 'record'} reportView={tab === 'report'} busy={busy}
     toggleServer={tab === 'record' ? togglePointServer : undefined}
     correctScore={tab === 'record' && !record.draft.pending ? () => { setError(''); setPanel({ kind: 'correct' }); } : undefined}
   />;
@@ -569,10 +498,16 @@ function Main() {
             onPlayer={setReportPlayerId} onChooseEvent={() => { setError(''); setPanel({ kind: 'pick-event-for-report' }); }}
             onExport={report => void external(() => sharePlayerPerformancePDF(report))}
           />
-          : record && projection ? <Stack>
-            {!pinScore && scoreboard}
-            {tab === 'record' ? live() : tab === 'history' ? history() : report()}
-          </Stack> : null}
+          : record && projection ? tab === 'report'
+            ? <MatchReport key={record.id} record={record} projection={projection} scoreboard={scoreboard} busy={busy}
+              onExportPDF={() => { setError(''); setPanel({ kind: 'export-match-pdf' }); }}
+              onExportCSV={() => void external(() => shareText(`tennis-match-${record.id}.csv`, reportCSV(record), 'text/csv'))}
+              onEditNotes={openMatchNotes}
+              renderPointActions={({ id, point }) => pointActions(id, point.observations)}
+              scrollToTop={() => mainScroll.current?.scrollTo({ y: 0, animated: false })}
+            />
+            : <Stack>{!pinScore && scoreboard}{tab === 'record' ? live() : history()}</Stack>
+          : null}
         {notice ? <View accessibilityLiveRegion="polite"><T small muted>{notice}</T></View> : null}
       </ScrollView>
     </KeyboardAvoidingView>

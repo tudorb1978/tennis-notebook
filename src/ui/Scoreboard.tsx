@@ -30,20 +30,20 @@ function MatchClock({ playingMs, runningSinceMs }: { playingMs: number; runningS
   </Text>;
 }
 
-export function Scoreboard({ record, score, timing, toggleServer, correctScore, showPointStakes, showSetTieBreaks, busy }: {
+export function Scoreboard({ record, score, timing, toggleServer, correctScore, showPointStakes, reportView, busy }: {
   record: MatchRecord;
   score: MatchScore;
   timing: MatchTiming | null;
   toggleServer: (() => void) | undefined;
   correctScore: (() => void) | undefined;
   showPointStakes: boolean;
-  showSetTieBreaks: boolean;
+  reportView: boolean;
   busy: boolean;
 }) {
   type Column = { label: string; values: readonly [string, string]; large: boolean; tieBreak?: { label: string; winner: Side } };
   const c = useTheme(); const columns: Column[] = [];
   for (const [i, result] of score.completedStages.entries()) {
-    const label = showSetTieBreaks ? setTieBreakLabel(result) : '';
+    const label = reportView ? setTieBreakLabel(result) : '';
     columns.push({
       label: result.kind === 'set' ? `Set ${i + 1}` : 'MTB',
       values: (result.kind === 'set' ? result.games : result.points).map(String) as [string, string],
@@ -56,20 +56,20 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
     else { columns.push({ label: `Set ${score.current.index + 1}`, values: score.current.games.map(String) as [string, string], large: false }); columns.push({ label: 'Points', values: pointLabels(score), large: true }); }
   }
   const overridden = record.draft.actualServer != null;
-  const serving = score.status === 'in-progress' ? record.draft.actualServer ?? score.current!.server : null;
+  const serving = score.status === 'in-progress' && !reportView ? record.draft.actualServer ?? score.current!.server : null;
   const stakes = showPointStakes ? pointStakes(score, serving ?? undefined) : null;
   const status = serving !== null
     ? `${record.players[serving].name} serving${overridden ? ' · this point only' : score.current!.phase !== 'game' ? ' · tie-break' : ''}`
     : score.winner !== null
       ? `${record.players[score.winner].name} wins${score.status === 'retired' ? ' by retirement' : ''}`
-      : score.status === 'abandoned' ? 'Abandoned · no winner' : 'Match paused';
+      : score.status === 'abandoned' ? 'Abandoned · no winner' : score.status === 'suspended' ? 'Match paused' : 'In progress';
   const scoreWidth = (col: Column) => col.large ? 50 : col.tieBreak ? Math.max(35, 14 + col.tieBreak.label.length * 6) : 35;
   const row = { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 };
 
   return <Card style={{ backgroundColor: c.court, borderColor: c.courtLine, paddingHorizontal: 13, paddingVertical: 8, gap: 3, overflow: 'hidden' }}>
     <CourtLines centered opacity={0.46} />
-    <View style={{ ...row, gap: 12 }}>
-      <Text numberOfLines={1} style={{ color: c.courtInk, flex: 1, minWidth: 0, fontSize: 13, fontWeight: '600', lineHeight: 19 }}>
+    <View style={{ ...row, alignItems: reportView ? 'flex-start' : 'center', gap: 12 }}>
+      <Text numberOfLines={reportView ? 3 : 1} style={{ color: c.courtInk, flex: 1, minWidth: 0, fontSize: 13, fontWeight: '600', lineHeight: 19 }}>
         {record.group || 'Singles'}
       </Text>
       {timing && timing.playingMs !== null && <MatchClock playingMs={timing.playingMs} runningSinceMs={timing.runningSinceMs} />}
