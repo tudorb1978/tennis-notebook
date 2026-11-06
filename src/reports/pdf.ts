@@ -11,7 +11,12 @@ import { performanceCountLabels } from './playerPerformance.ts';
 import type { PlayerPerformanceReport } from './playerPerformance.ts';
 import type { MatchRecord } from '../storage/model.ts';
 
-export interface ReportFonts { regular: Uint8Array; bold: Uint8Array }
+export interface ReportAssets {
+  regular: Uint8Array;
+  bold: Uint8Array;
+  mark: Uint8Array;
+  wordmark: Uint8Array;
+}
 export type MatchPDFVariant = 'summary' | 'point-by-point' | 'combined';
 type TextRole = 'title' | 'lead' | 'heading' | 'subheading' | 'body' | 'caption' | 'tableHeader' | 'tableBody' | 'tableTotal'
   | 'positive' | 'negative' | 'rally';
@@ -42,11 +47,15 @@ function strokeTotals(player: PlayerStats) {
 }
 
 /** Generate on-device without a WebView, remote service, or system print renderer. */
-async function createReportPDF(title: string, kind: string, fonts: ReportFonts, render: (writer: ReportWriter) => void): Promise<Uint8Array> {
+async function createReportPDF(title: string, kind: string, assets: ReportAssets, render: (writer: ReportWriter) => void): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
-  const regular = await doc.embedFont(fonts.regular, { subset: true });
-  const bold = await doc.embedFont(fonts.bold, { subset: true });
+  const regular = await doc.embedFont(assets.regular, { subset: true });
+  const bold = await doc.embedFont(assets.bold, { subset: true });
+  const mark = await doc.embedPng(assets.mark);
+  const wordmark = await doc.embedPng(assets.wordmark);
+  const markSize = mark.scale(26 / mark.height);
+  const wordmarkSize = wordmark.scale(26 / wordmark.height);
   const regularCharacters = new Set(regular.getCharacterSet());
   const boldCharacters = new Set(bold.getCharacterSet());
   const court = rgb(.08, .22, .17);
@@ -56,7 +65,6 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
   const soft = rgb(.92, .95, .90);
   const stripe = rgb(.97, .98, .97);
   const white = rgb(1, 1, 1);
-  const lime = rgb(.88, .95, .68);
   const playerFills = [
     { labels: rgb(.88, .93, .84), plain: rgb(.96, .98, .94), stripe: rgb(.93, .96, .90), total: rgb(.88, .93, .84) },
     { labels: rgb(.87, .92, .95), plain: rgb(.95, .97, .99), stripe: rgb(.92, .95, .97), total: rgb(.87, .92, .95) },
@@ -84,11 +92,11 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
   }
   function newPage() {
     page = doc.addPage([width, height]);
-    const headerY = height - 45;
-    page.drawRectangle({ x: left, y: headerY - 1, width: 9, height: 9, color: lime });
-    page.drawText('TENNIS NOTEBOOK', { x: left + 15, y: headerY, size: 9, font: bold, color: court });
-    page.drawText(kind, { x: width - left - bold.widthOfTextAtSize(kind, 8), y: headerY, size: 8, font: bold, color: muted });
-    rule(page, headerY - 12);
+    const headerCenter = height - 39;
+    page.drawImage(mark, { x: left, y: headerCenter - markSize.height / 2, ...markSize });
+    page.drawImage(wordmark, { x: left + markSize.width + 4, y: headerCenter - wordmarkSize.height / 2, ...wordmarkSize });
+    page.drawText(kind, { x: width - left - bold.widthOfTextAtSize(kind, 8), y: headerCenter - 3, size: 8, font: bold, color: muted });
+    rule(page, height - 57);
     y = top;
   }
   function ensure(space: number) {
@@ -363,9 +371,9 @@ const reportKinds: Record<MatchPDFVariant, string> = {
   combined: 'COMBINED MATCH REPORT',
 };
 
-export function createMatchPDF(record: MatchRecord, fonts: ReportFonts, variant: MatchPDFVariant = 'combined'): Promise<Uint8Array> {
+export function createMatchPDF(record: MatchRecord, assets: ReportAssets, variant: MatchPDFVariant = 'combined'): Promise<Uint8Array> {
   const title = `${record.players[0].name} vs ${record.players[1].name}`;
-  return createReportPDF(title, reportKinds[variant], fonts, ({ group, summary, statsTable, strokeTable, pressurePoints, matchNotes, notesSummary, pointNote }) => {
+  return createReportPDF(title, reportKinds[variant], assets, ({ group, summary, statsTable, strokeTable, pressurePoints, matchNotes, notesSummary, pointNote }) => {
     const projection = replayMatchForReport(record);
     const { score, stats, points, hasScoreCorrections, timing } = projection;
     const names = [record.players[0].name, record.players[1].name] as const;
@@ -425,8 +433,8 @@ export function createMatchPDF(record: MatchRecord, fonts: ReportFonts, variant:
   });
 }
 
-export function createPlayerPerformancePDF(report: PlayerPerformanceReport, fonts: ReportFonts): Promise<Uint8Array> {
-  return createReportPDF(`Player performance · ${report.name}`, 'PLAYER PERFORMANCE', fonts, ({ group, summary, playerTable, pressurePoints, notesSummary }) => {
+export function createPlayerPerformancePDF(report: PlayerPerformanceReport, assets: ReportAssets): Promise<Uint8Array> {
+  return createReportPDF(`Player performance · ${report.name}`, 'PLAYER PERFORMANCE', assets, ({ group, summary, playerTable, pressurePoints, notesSummary }) => {
     group([[report.name, 'title', 5], [report.scope, 'body', 14]]);
     const [volume, result] = performanceCountLabels(report);
     summary(volume, [result]);

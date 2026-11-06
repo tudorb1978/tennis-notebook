@@ -4,7 +4,7 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Asset } from 'expo-asset';
 import { createMatchPDF, createPlayerPerformancePDF } from './pdf.ts';
-import type { MatchPDFVariant, ReportFonts } from './pdf.ts';
+import type { MatchPDFVariant, ReportAssets } from './pdf.ts';
 import type { PlayerPerformanceReport } from './playerPerformance.ts';
 import type { MatchRecord } from '../storage/model.ts';
 
@@ -27,18 +27,20 @@ export async function pickBackup(): Promise<string | null> {
   if (Platform.OS === 'web' && asset.file) return asset.file.text();
   return new File(asset.uri).text();
 }
-async function loadReportFont(moduleId: number): Promise<Uint8Array> {
+async function loadReportAsset(moduleId: number): Promise<Uint8Array> {
   const asset = await Asset.fromModule(moduleId).downloadAsync();
   return Platform.OS === 'web' ? new Uint8Array(await (await fetch(asset.uri)).arrayBuffer()) : new File(asset.localUri ?? asset.uri).bytes();
 }
-async function shareReportPDF(filename: string, create: (fonts: ReportFonts) => Promise<Uint8Array>): Promise<void> {
+async function shareReportPDF(filename: string, create: (assets: ReportAssets) => Promise<Uint8Array>): Promise<void> {
   // Include both weights' redistribution notice in every app bundle.
   Asset.fromModule(require('../../assets/FONT-LICENSE.txt'));
-  const [regular, bold] = await Promise.all([
-    loadReportFont(require('../../assets/DejaVuSans.ttf')),
-    loadReportFont(require('../../assets/DejaVuSans-Bold.ttf')),
+  const [regular, bold, mark, wordmark] = await Promise.all([
+    loadReportAsset(require('../../assets/DejaVuSans.ttf')),
+    loadReportAsset(require('../../assets/DejaVuSans-Bold.ttf')),
+    loadReportAsset(require('../../assets/tennis-notebook-mark.png')),
+    loadReportAsset(require('../../assets/tennis-notebook-wordmark.png')),
   ]);
-  const bytes = await create({ regular, bold });
+  const bytes = await create({ regular, bold, mark, wordmark });
   if (Platform.OS === 'web') {
     const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }));
     const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); return;
@@ -51,9 +53,9 @@ async function shareReportPDF(filename: string, create: (fonts: ReportFonts) => 
 export function sharePDF(record: MatchRecord, variant: MatchPDFVariant): Promise<void> {
   const players = record.players.map(({ name }, side) => name.normalize('NFKD').replace(/\p{M}/gu, '')
     .replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 40).replace(/^-+|-+$/g, '') || (side === 0 ? 'Player' : 'Opponent'));
-  return shareReportPDF(`${players.join('-vs-')}-${record.date}-${variant}.pdf`, fonts => createMatchPDF(record, fonts, variant));
+  return shareReportPDF(`${players.join('-vs-')}-${record.date}-${variant}.pdf`, assets => createMatchPDF(record, assets, variant));
 }
 
 export function sharePlayerPerformancePDF(report: PlayerPerformanceReport): Promise<void> {
-  return shareReportPDF('tennis-player-performance.pdf', font => createPlayerPerformancePDF(report, font));
+  return shareReportPDF('tennis-player-performance.pdf', assets => createPlayerPerformancePDF(report, assets));
 }

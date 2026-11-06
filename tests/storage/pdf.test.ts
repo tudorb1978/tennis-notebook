@@ -6,16 +6,18 @@ import { createMatchPDF } from '../../src/reports/pdf.ts';
 import { presets } from '../../src/domain/presets.ts';
 import { emptyDraft } from '../../src/storage/model.ts';
 import type { MatchRecord } from '../../src/storage/model.ts';
-const [regular, bold] = await Promise.all([
+const [regular, bold, mark, wordmark] = await Promise.all([
   readFile(new URL('../../assets/DejaVuSans.ttf', import.meta.url)),
   readFile(new URL('../../assets/DejaVuSans-Bold.ttf', import.meta.url)),
+  readFile(new URL('../../assets/tennis-notebook-mark.png', import.meta.url)),
+  readFile(new URL('../../assets/tennis-notebook-wordmark.png', import.meta.url)),
 ]);
-const fonts = { regular, bold };
+const assets = { regular, bold, mark, wordmark };
 function fixture(): MatchRecord {
   return { schemaVersion: 1, id: 'pdf-test', revision: 1, createdAt: '2026-11-04T12:00:00Z', updatedAt: '2026-11-04T12:00:00Z', players: [{ id: 'p1', name: 'Ștefan' }, { id: null, name: 'Émilie' }], date: '2026-11-04', group: 'Practice', round: '', venue: '', surface: 'Hard', conditions: '', format: presets['fast4-match-tiebreak'], firstServer: 0, mode: 'endings', events: [], draft: emptyDraft() };
 }
 test('A local PDF embeds the font, preserves Unicode names, and has valid A4 pages', async () => {
-  const bytes = await createMatchPDF(fixture(), fonts);
+  const bytes = await createMatchPDF(fixture(), assets);
   const pdf = await PDFDocument.load(bytes);
   assert.equal(pdf.getTitle(), 'Ștefan vs Émilie');
   assert.equal(pdf.getPageCount(), 1);
@@ -25,16 +27,16 @@ test('A local PDF embeds the font, preserves Unicode names, and has valid A4 pag
 test('Long point notes paginate into a valid report without a native print renderer', async () => {
   const match = fixture();
   match.events = Array.from({ length: 20 }, (_, i) => ({ id: `point-${i}`, type: 'point' as const, input: { type: 'winner-only' as const, winner: 0 as const, observations: { ...emptyDraft().observations, notes: 'Backhand depth under pressure. '.repeat(30) } } }));
-  const pdf = await PDFDocument.load(await createMatchPDF(match, fonts));
+  const pdf = await PDFDocument.load(await createMatchPDF(match, assets));
   assert.ok(pdf.getPageCount() > 2);
 });
 test('Multi-page match notes start below their heading without wasting a page', async () => {
   const match = fixture();
   match.matchNotes = Array(48).fill('Use more depth on the return.').join('\n');
-  const pdf = await PDFDocument.load(await createMatchPDF(match, fonts));
+  const pdf = await PDFDocument.load(await createMatchPDF(match, assets));
   assert.equal(pdf.getPageCount(), 2);
 });
 test('Unsupported font characters fail explicitly rather than losing player names', async () => {
   const match = fixture(); match.players[0].name = '\u{10FFFF}';
-  await assert.rejects(createMatchPDF(match, fonts), /font cannot display/);
+  await assert.rejects(createMatchPDF(match, assets), /font cannot display/);
 });
