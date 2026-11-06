@@ -234,7 +234,8 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
     rows.push(tableRow(['Total', ...totalsByType], widths, 'total'));
     ensure(rows.reduce((space, row) => space + row.height, title.height + 8 + totals.height + serving.height - serving.gap));
     draw(title);
-    rows.forEach(row => drawTableRow(row));
+    const playerColumns = [null, 0, 0, 0];
+    rows.forEach(row => drawTableRow(row, playerColumns));
     y -= 8;
     draw(totals);
     draw(serving);
@@ -246,7 +247,8 @@ async function createReportPDF(title: string, kind: string, fonts: ReportFonts, 
       ...rows.map((row, index) => tableRow(row, widths, index % 2 ? 'stripe' : 'plain'))];
     ensure(title.height + table.reduce((sum, row) => sum + row.height, 0));
     draw(title);
-    table.forEach(row => drawTableRow(row));
+    const playerColumns = [null, 0, 1];
+    table.forEach(row => drawTableRow(row, playerColumns));
     y -= 13;
   }
   function groupedTable(heading: string, firstColumn: string, names: readonly string[], columns: readonly string[],
