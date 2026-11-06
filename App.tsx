@@ -39,7 +39,7 @@ const matchTabs = [
   { value: 'history', label: 'History', icon: 'history' },
   { value: 'report', label: 'Report', icon: 'report' },
 ] as const;
-type PointPanel = 'edit-point' | 'point-notes';
+type PointPanel = 'edit-point' | 'point-notes' | 'delete-point';
 type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'open-unstarted-match' | 'start-match'; match: UnstartedMatchRecord } | { kind: 'settings' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
 function AwakeWhileRecording() { useKeepAwake('tennis-recording'); return null; }
 function Main() {
@@ -216,9 +216,15 @@ function Main() {
 
   const openPointPanel = (kind: PointPanel, id: string) => { setError(''); setPanel({ kind, id }); };
   const openMatchNotes = () => { setError(''); setPanel({ kind: 'match-notes' }); };
-  const pointActions = (id: string, observations?: PointObservations) => <Row style={{ gap: 4 }}>
-    <Button quiet disabled={busy} onPress={() => openPointPanel('edit-point', id)}>Edit point</Button>
-    <Button quiet disabled={busy} onPress={() => openPointPanel('point-notes', id)}>{hasPointNotes(observations) ? 'Edit notes' : 'Add notes'}</Button>
+  const pointActions = (id: string, observations?: PointObservations, previous = false) => <Row style={{ gap: 6 }}>
+    <Button quiet={!previous} compact={previous} {...(previous ? { icon: 'edit' as const } : {})} disabled={busy} onPress={() => openPointPanel('edit-point', id)}>Edit point</Button>
+    <Button quiet={!previous} compact={previous} {...(previous ? { icon: 'note' as const } : {})} disabled={busy} onPress={() => openPointPanel('point-notes', id)}>{hasPointNotes(observations) ? 'Edit notes' : 'Add notes'}</Button>
+    {previous && <Button compact label="Delete last point" disabled={busy || !projection?.canDeleteLastPoint} onPress={() => openPointPanel('delete-point', id)}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+        <Icon name="trash" color={c.error} size={15} />
+        <T small bold style={{ color: c.error }}>Delete</T>
+      </View>
+    </Button>}
   </Row>;
   const saveSelectedPoint = (input: PointInput) => {
     if (!selectedEntry) return;
@@ -243,12 +249,27 @@ function Main() {
     return savePoint({ type, actor: pointServer, observations });
   };
 
+  function previousPoint() {
+    const last = projection?.pointEntries.at(-1);
+    if (!record || !last) return null;
+    return <Card style={{ backgroundColor: c.soft, paddingVertical: 8, gap: 6 }}>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <View style={{ flexGrow: 1, flexBasis: 120 }}>
+          <T small bold>Previous point · {record.players[last.point.winner].name}</T>
+          <T small muted>{endingNames[last.point.ending]}{last.point.stroke ? ` · ${strokeNames[last.point.stroke]}` : ''}</T>
+        </View>
+        {pointActions(last.id, last.point.observations, true)}
+      </Row>
+      {!projection?.canDeleteLastPoint && <T small muted>Undo the later score correction to delete this point.</T>}
+    </Card>;
+  }
+
   function live() {
     if (!record || !projection) return null;
     const score = projection.score; const ongoing = score.status === 'in-progress'; const paused = score.status === 'suspended';
     const obs = record.draft.observations; const pending = record.draft.pending;
-    if (!ongoing && !paused) return <Stack><Notice>{score.status === 'abandoned' ? 'Match ended without a winner.' : `${record.players[score.winner!].name} wins${score.status === 'retired' ? ' by retirement' : ''}.`}</Notice><Button primary onPress={() => setTab('report')}>View match report</Button><Button disabled={busy} onPress={() => void undo()}>Undo last action</Button></Stack>;
-    if (paused) return <Card><Heading>Match paused</Heading><T muted>{record.timingStartedAt ? 'The match clock is paused. Your score and observations are saved.' : 'Your score and observations are saved.'}</T><Button primary disabled={busy} onPress={() => void addLifecycle({ type: 'resume' })}>Resume recording</Button><Button quiet disabled={busy} onPress={() => setPanel({ kind: 'finish' })}>Finish early</Button></Card>;
+    if (!ongoing && !paused) return <Stack><Notice>{score.status === 'abandoned' ? 'Match ended without a winner.' : `${record.players[score.winner!].name} wins${score.status === 'retired' ? ' by retirement' : ''}.`}</Notice><Button primary onPress={() => setTab('report')}>View match report</Button>{previousPoint()}<Button disabled={busy} onPress={() => void undo()}>Undo last action</Button></Stack>;
+    if (paused) return <Stack><Card><Heading>Match paused</Heading><T muted>{record.timingStartedAt ? 'The match clock is paused. Your score and observations are saved.' : 'Your score and observations are saved.'}</T><Button primary disabled={busy} onPress={() => void addLifecycle({ type: 'resume' })}>Resume recording</Button><Button quiet disabled={busy} onPress={() => setPanel({ kind: 'finish' })}>Finish early</Button></Card>{previousPoint()}</Stack>;
     if (pending && !('winner' in pending)) {
       const canPickServe = pending.actor === pointServer && (pending.ending === 'winner' || !serveWasIn(obs));
       const available = strokes.filter(stroke => stroke !== 'unknown' && (stroke !== 'serve' || canPickServe));
@@ -310,7 +331,6 @@ function Main() {
         </View>
       </Card>;
     }
-    const last = projection.pointEntries.at(-1);
     const firstServePending = obs.firstServe === 'unknown';
     const secondServePending = obs.firstServe === 'fault' && obs.secondServe === 'unknown';
     const missedReturner = record.mode === 'detailed' && obs.returnResult === 'error' && pointServer !== undefined
@@ -381,15 +401,7 @@ function Main() {
           })}
         </View>
       </Card>}
-      {last && <Card style={{ backgroundColor: c.soft, paddingVertical: 8, gap: 4 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <View style={{ flexGrow: 1, flexBasis: 120 }}>
-            <T small bold>Previous point · {record.players[last.point.winner].name}</T>
-            <T small muted>{endingNames[last.point.ending]}{last.point.stroke ? ` · ${strokeNames[last.point.stroke]}` : ''}</T>
-          </View>
-          {pointActions(last.id, last.point.observations)}
-        </Row>
-      </Card>}
+      {previousPoint()}
       <Row style={{ justifyContent: 'space-between', gap: 0 }}>
         <Button quiet disabled={busy} onPress={() => void addLifecycle({ type: 'suspend' })}>Pause</Button>
         <Button quiet disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'finish' }); }}>Finish early</Button>
@@ -425,7 +437,7 @@ function Main() {
         <T bold>Score and match actions</T>
         {actions.map(event => <T small muted key={event.id}>{event.type === 'correction' ? `Score correction · ${event.reason}` : event.type === 'lifecycle'
           ? { suspend: 'Match paused', resume: 'Match resumed', retire: 'Match ended by retirement', abandon: 'Match abandoned' }[event.action.type]
-          : event.type === 'edit-point' ? 'Point details edited' : 'Action undone'}</T>)}
+          : event.type === 'edit-point' ? 'Point details edited' : event.type === 'delete-point' ? 'Point deleted' : 'Action undone'}</T>)}
       </Card>}
     </Stack>;
   }
@@ -661,6 +673,17 @@ function Main() {
       {panel?.kind === 'point-notes' && selectedEntry && record && <PointNotesEditor
         input={selectedEntry.input} names={[record.players[0].name, record.players[1].name]} busy={busy} onSave={saveSelectedPoint}
       />}
+      {panel?.kind === 'delete-point' && selectedEntry && record && <Stack>
+        <Heading>Delete the last point?</Heading>
+        <T>{record.players[selectedEntry.point.winner].name} won this point. Deleting it removes its notes and recalculates the score and report.</T>
+        {(record.draft.observations.firstServe !== 'unknown' || record.draft.lets > 0 || record.draft.actualServer != null) &&
+          <T small muted>Any serve details entered for the next point will also be cleared.</T>}
+        <Button destructive icon="trash" disabled={busy} onPress={() => void addEvent(
+          { id: randomUUID(), type: 'delete-point', targetId: selectedEntry.id },
+          () => { setPanel(null); setNotice('Point deleted. Tap Undo to restore it.'); },
+          true,
+        )}>Delete point</Button>
+      </Stack>}
       {panel?.kind === 'import' && <Stack><Heading>Restore backup</Heading><T>{panel.preview.newPlayers} new players and {panel.preview.newMatches} new matches.</T><Notice>{panel.preview.identical} identical matches will be skipped. {panel.preview.conflicts} conflicts will be left unchanged.</Notice><T small muted>Existing records will not be overwritten.</T><Button primary disabled={busy || (panel.preview.newMatches === 0 && panel.preview.newPlayers === 0)} onPress={() => {
       const text = panel.text;
       void external(async () => { const result = await repository.current!.importNew(text); setPlayers(await repository.current!.players()); setMatches(await repository.current!.matches()); setPanel(null); setScreen('home'); setNotice(`Restored ${result.newMatches} matches. Existing records were kept.`); });

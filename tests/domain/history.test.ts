@@ -117,6 +117,64 @@ test('Undo is retained in history and reverts score, server, and stroke statisti
   assert.deepEqual(replayMatch(format, 0, twice).score.current!.points, [1, 0]);
 });
 
+test('Deleting the latest point removes its notes and stats while preserving edits to other points', () => {
+  const events: MatchEvent[] = [
+    ...examples,
+    { id: 'note-c', type: 'edit-point', targetId: 'c', input: { type: 'ending', actor: 1, ending: 'forced-error', stroke: 'volley',
+      observations: { ...emptyObservations(), notes: 'At the net' } } },
+    { id: 'edit-a', type: 'edit-point', targetId: 'a', input: { type: 'ending', actor: 0, ending: 'winner', stroke: 'backhand' } },
+  ];
+  const before = replayMatch(format, 0, events);
+  const deleted = appendEvent(format, 0, events, { id: 'delete-c', type: 'delete-point', targetId: 'c' });
+  const after = replayMatch(format, 0, JSON.parse(JSON.stringify(deleted)));
+  assert.deepEqual(after.pointEntries.map(entry => entry.id), ['a', 'b']);
+  assert.deepEqual(after.score.current!.points, [1, 1]);
+  assert.equal(after.stats.players[0].byStroke.backhand.winners, 1);
+  assert.equal(after.stats.players[1].byStroke.volley.forcedErrors, 0);
+  assert.equal(after.lastActionId, 'delete-c');
+  assert.equal(after.canDeleteLastPoint, true);
+  assert.equal(before.points.at(-1)?.observations?.notes, 'At the net');
+  const restored = undoLast(format, 0, deleted, 'restore-c');
+  assert.deepEqual(replayMatch(format, 0, restored), before);
+});
+
+test('Deleting a point preserves pause and resume actions and match timing', () => {
+  const startedAt = '2026-11-05T12:00:00.000Z';
+  const resumedAt = '2026-11-05T12:00:15.000Z';
+  const events: MatchEvent[] = [
+    { ...examples[0]!, recordedAt: '2026-11-05T12:00:05.000Z' },
+    { id: 'pause', type: 'lifecycle', action: { type: 'suspend' }, recordedAt: '2026-11-05T12:00:10.000Z' },
+    { id: 'resume', type: 'lifecycle', action: { type: 'resume' }, recordedAt: resumedAt },
+  ];
+  const deleted = appendEvent(format, 0, events, { id: 'delete', type: 'delete-point', targetId: 'a' });
+  const projection = replayMatch(format, 0, deleted, startedAt);
+  assert.equal(projection.score.status, 'in-progress');
+  assert.deepEqual(projection.score.current!.points, [0, 0]);
+  assert.equal(projection.canDeleteLastPoint, false);
+  assert.deepEqual(projection.timing, replayMatch(format, 0, events, startedAt).timing);
+  assert.equal(projection.timing!.runningSinceMs, Date.parse(resumedAt));
+});
+
+test('Only the latest live point can be deleted and a later active correction blocks deletion', () => {
+  const deleteC = { id: 'delete-c', type: 'delete-point', targetId: 'c' } as const;
+  assert.throws(() => appendEvent(format, 0, examples, { ...deleteC, targetId: 'a' }), /latest recorded point/);
+  const corrected = appendEvent(format, 0, examples, {
+    id: 'checkpoint', type: 'correction', correction: { games: [2, 1], points: [3, 2], nextServer: 1 }, reason: 'Missed points',
+  });
+  assert.equal(replayMatch(format, 0, corrected).canDeleteLastPoint, false);
+  assert.throws(() => appendEvent(format, 0, corrected, deleteC), /later score correction/);
+  const correctionUndone = undoLast(format, 0, corrected, 'undo-correction');
+  assert.equal(replayMatch(format, 0, correctionUndone).canDeleteLastPoint, true);
+  const deleted = appendEvent(format, 0, correctionUndone, deleteC);
+  assert.equal(appendEvent(format, 0, deleted, deleteC), deleted);
+  assert.throws(() => appendEvent(format, 0, deleted, { ...deleteC, id: 'delete-c-again' }), /latest recorded point/);
+  assert.throws(() => appendEvent(format, 0, deleted, {
+    id: 'edit-c', type: 'edit-point', targetId: 'c', input: { type: 'winner-only', winner: 0 },
+  }), /no longer available/);
+  const twice = appendEvent(format, 0, deleted, { id: 'delete-b', type: 'delete-point', targetId: 'b' });
+  assert.deepEqual(replayMatch(format, 0, twice).pointEntries.map(entry => entry.id), ['a']);
+});
+
 test('Undoing a match-winning point reopens the correct game and server', () => {
   const events: MatchEvent[] = [
     { id: 'checkpoint', type: 'correction', correction: { games: [3, 2], points: [3, 0], nextServer: 1 }, reason: 'Joined late' },
@@ -127,6 +185,24 @@ test('Undoing a match-winning point reopens the correct game and server', () => 
   assert.equal(score.status, 'in-progress');
   assert.deepEqual(score.current!.points, [3, 0]);
   assert.equal(score.current!.server, 1);
+});
+
+test('Deleting a match-winning point reopens the match and its playing clock', () => {
+  const startedAt = '2026-11-05T12:00:00.000Z';
+  const events: MatchEvent[] = [
+    { id: 'checkpoint', type: 'correction', correction: { games: [3, 2], points: [3, 0], nextServer: 1 }, reason: 'Joined late' },
+    { id: 'last', type: 'point', input: { type: 'winner-only', winner: 0 }, recordedAt: '2026-11-05T12:30:00.000Z' },
+  ];
+  const completed = replayMatch(format, 0, events, startedAt);
+  assert.equal(completed.score.status, 'completed');
+  const deleted = appendEvent(format, 0, events, { id: 'delete-last', type: 'delete-point', targetId: 'last' });
+  const projection = replayMatch(format, 0, deleted, startedAt);
+  assert.equal(projection.score.status, 'in-progress');
+  assert.deepEqual(projection.score.current!.points, [3, 0]);
+  assert.equal(projection.score.current!.server, 1);
+  assert.equal(projection.timing!.endedAt, null);
+  assert.equal(projection.timing!.runningSinceMs, Date.parse(startedAt));
+  assert.deepEqual(replayMatch(format, 0, undoLast(format, 0, deleted, 'restore-last'), startedAt), completed);
 });
 
 test('Corrections preserve known statistics without inventing missing points', () => {

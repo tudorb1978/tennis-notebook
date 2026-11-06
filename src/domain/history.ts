@@ -1,4 +1,4 @@
-import { changeLifecycle, correctCurrentStage, createScore } from './scoring.ts';
+import { changeLifecycle, correctCurrentStage, createScore, other } from './scoring.ts';
 import type { LifecycleAction, MatchFormat, MatchScore, ScoreCorrection, Side } from './scoring.ts';
 import { recordPoint, serveEndingIssue, summarisePoints } from './points.ts';
 import type { PointInput, RecordedPoint } from './points.ts';
@@ -6,6 +6,7 @@ import type { PointInput, RecordedPoint } from './points.ts';
 export type MatchEvent = { readonly id: string; readonly recordedAt?: string } & (
   | { readonly type: 'point'; readonly input: PointInput }
   | { readonly type: 'edit-point'; readonly targetId: string; readonly input: PointInput }
+  | { readonly type: 'delete-point'; readonly targetId: string }
   | { readonly type: 'correction'; readonly correction: ScoreCorrection; readonly reason: string }
   | { readonly type: 'lifecycle'; readonly action: LifecycleAction }
   | { readonly type: 'undo'; readonly targetId: string }
@@ -43,8 +44,15 @@ export interface MatchProjection {
   readonly pointEntries: readonly { id: string; input: PointInput; point: RecordedPoint }[];
   readonly stats: ReturnType<typeof summarisePoints>;
   readonly hasScoreCorrections: boolean;
+  readonly canDeleteLastPoint: boolean;
   readonly lastActionId: string | null;
   readonly timing: MatchTiming | null;
+}
+
+function pointWinner(input: PointInput): Side {
+  if (input.type === 'winner-only') return input.winner;
+  if (input.type === 'ace' || (input.type === 'ending' && input.ending === 'winner')) return input.actor;
+  return other(input.actor);
 }
 
 export function replayMatch(format: MatchFormat, firstServer: Side, events: readonly MatchEvent[], startedAt?: string): MatchProjection {
@@ -58,24 +66,40 @@ export function replayMatch(format: MatchFormat, firstServer: Side, events: read
   let pausedMs = 0;
   let timingComplete = Number.isFinite(lastChangeMs);
   const active = activeEvents(events);
-  const overrides = new Map<string, PointInput>();
+
+  // Resolve point changes before replaying the score, keeping other actions in place.
+  const livePoints: { id: string; input: PointInput; index: number }[] = [];
+  const pointsById = new Map<string, (typeof livePoints)[number]>();
+  let lastCorrectionIndex = -1;
   for (let i = 0; i < active.length; i++) {
     const event = active[i]!;
-    if (event.type !== 'edit-point') continue;
-    const targetIndex = active.findIndex(e => e.id === event.targetId && e.type === 'point');
-    if (targetIndex < 0 || targetIndex >= i) throw new Error('The point being edited is no longer available.');
-    const target = active[targetIndex]!;
-    const original = overrides.get(target.id) ?? (target as Extract<MatchEvent, { type: 'point' }>).input;
-    const pointWinner = (p: PointInput): Side => p.type === 'winner-only' ? p.winner : p.type === 'ace' || (p.type === 'ending' && p.ending === 'winner') ? p.actor : p.actor === 0 ? 1 : 0;
-    if (pointWinner(original) !== pointWinner(event.input) && active.slice(targetIndex + 1, i).some(e => e.type === 'correction')) {
-      throw new Error('Undo the later score correction before changing this point’s winner.');
+    if (event.type === 'point') {
+      const point = { id: event.id, input: event.input, index: i };
+      livePoints.push(point);
+      pointsById.set(event.id, point);
+    } else if (event.type === 'correction') {
+      lastCorrectionIndex = i;
+    } else if (event.type === 'edit-point') {
+      const target = pointsById.get(event.targetId);
+      if (!target) throw new Error('The point being edited is no longer available.');
+      if (target.index < lastCorrectionIndex && pointWinner(target.input) !== pointWinner(event.input)) {
+        throw new Error('Undo the later score correction before changing this point’s winner.');
+      }
+      target.input = event.input;
+    } else if (event.type === 'delete-point') {
+      const target = livePoints.at(-1);
+      if (!target || target.id !== event.targetId) throw new Error('Only the latest recorded point can be deleted.');
+      if (target.index < lastCorrectionIndex) throw new Error('Undo the later score correction before deleting this point.');
+      livePoints.pop();
+      pointsById.delete(target.id);
     }
-    overrides.set(event.targetId, event.input);
   }
   for (const event of active) {
     const previousStatus = score.status;
     if (event.type === 'point') {
-      const input = overrides.get(event.id) ?? event.input;
+      const entry = pointsById.get(event.id);
+      if (!entry) continue;
+      const { input } = entry;
       const recorded = recordPoint(score, input);
       score = recorded.score;
       points.push(recorded.point);
@@ -85,7 +109,7 @@ export function replayMatch(format: MatchFormat, firstServer: Side, events: read
       score = correctCurrentStage(score, event.correction);
       hasScoreCorrections = true;
     } else if (event.type === 'lifecycle') score = changeLifecycle(score, event.action);
-    else if (event.type !== 'edit-point') throw new Error('Unexpected match event.');
+    else if (event.type !== 'edit-point' && event.type !== 'delete-point') throw new Error('Unexpected match event.');
 
     if (startedAt === undefined || score.status === previousStatus) continue;
     const changedAtMs = event.recordedAt === undefined ? NaN : Date.parse(event.recordedAt);
@@ -101,7 +125,8 @@ export function replayMatch(format: MatchFormat, firstServer: Side, events: read
     playingMs: timingComplete ? lastChangeMs - startedAtMs - pausedMs : null,
     runningSinceMs: timingComplete && score.status === 'in-progress' ? lastChangeMs : null,
   };
-  return { score, points, pointEntries, stats: summarisePoints(points), hasScoreCorrections, lastActionId: active.at(-1)?.id ?? null, timing };
+  return { score, points, pointEntries, stats: summarisePoints(points), hasScoreCorrections,
+    canDeleteLastPoint: (livePoints.at(-1)?.index ?? -1) > lastCorrectionIndex, lastActionId: active.at(-1)?.id ?? null, timing };
 }
 
 /** Validate before persistence; retrying the identical event cannot duplicate a point. */

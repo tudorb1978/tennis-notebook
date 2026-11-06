@@ -9,6 +9,7 @@ const icons = {
   close: require('../../assets/icons/close.png'),
   court: require('../../assets/icons/court.png'),
   download: require('../../assets/icons/download.png'),
+  edit: require('../../assets/icons/edit.png'),
   history: require('../../assets/icons/history.png'),
   note: require('../../assets/icons/note.png'),
   players: require('../../assets/icons/players.png'),
@@ -17,6 +18,7 @@ const icons = {
   report: require('../../assets/icons/report.png'),
   settings: require('../../assets/icons/settings.png'),
   sliders: require('../../assets/icons/sliders.png'),
+  trash: require('../../assets/icons/trash.png'),
   undo: require('../../assets/icons/undo.png'),
   upload: require('../../assets/icons/upload.png'),
 };
