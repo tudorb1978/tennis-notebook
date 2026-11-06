@@ -243,11 +243,13 @@ function Main() {
     return savePoint({ type, actor: pointServer, observations });
   };
 
+  const recordingSectionDivider = { marginTop: 8, borderTopWidth: 2, borderTopColor: c.line, paddingTop: 14 };
+
   function previousPoint() {
     const last = projection?.pointEntries.at(-1);
     if (!record || !last) return null;
     const actionStyle = { flex: 1, minWidth: 72, paddingHorizontal: 8 };
-    return <View style={{ marginTop: 8, borderTopWidth: 2, borderTopColor: c.line, paddingTop: 14 }}>
+    return <View style={recordingSectionDivider}>
       <Card style={{ backgroundColor: c.soft, padding: 12, gap: 8 }}>
         <Row style={{ columnGap: 12, rowGap: 9 }}>
           <View style={{ flexGrow: 1, flexBasis: 144, minWidth: 0 }}>
@@ -411,7 +413,7 @@ function Main() {
         </View>
       </Card>}
       {previousPoint()}
-      <Row style={{ justifyContent: 'space-between', gap: 0 }}>
+      <Row style={{ ...recordingSectionDivider, justifyContent: 'space-between', gap: 0 }}>
         <Button quiet disabled={busy} onPress={() => void addLifecycle({ type: 'suspend' })}>Pause</Button>
         <Button quiet disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'finish' }); }}>Finish early</Button>
         <Button quiet testID="recording-mode" disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'recording-mode' }); }}>
