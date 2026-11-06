@@ -338,8 +338,14 @@ function Main() {
             : <Button style={layout.cell} disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
           {aceButton}
         </View> : <>
-          <Choices compact label="Return result" value={obs.returnResult} options={[{ value: 'in', label: 'In' }, { value: 'error', label: 'Missed' }, { value: 'unknown', label: 'Not seen' }]} disabled={busy} onChange={returnResult => void saveDraft({ ...obs, returnResult })} />
-          <Choices compact label="Return stroke" value={obs.returnStroke} options={[{ value: 'forehand', label: 'Forehand' }, { value: 'backhand', label: 'Backhand' }, { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Not seen' }]} disabled={busy} onChange={returnStroke => void saveDraft({ ...obs, returnStroke })} />
+          <Choices compact label="Return result" value={obs.returnResult}
+            options={[{ value: 'in', label: 'In' }, { value: 'error', label: 'Missed' }, { value: 'unknown', label: 'Not seen' }]}
+            disabled={busy} onChange={returnResult => void saveDraft({
+              ...obs, returnResult, returnStroke: returnResult === 'unknown' ? 'unknown' : obs.returnStroke,
+            })} />
+          {obs.returnResult !== 'unknown' && <Choices compact label="Return stroke" value={obs.returnStroke}
+            options={[{ value: 'forehand', label: 'Forehand' }, { value: 'backhand', label: 'Backhand' }, { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Not seen' }]}
+            disabled={busy} onChange={returnStroke => void saveDraft({ ...obs, returnStroke })} />}
         </>}
       </Card>}
       {missedReturner !== null ? <Card style={{ padding: 10, gap: 8 }}>
