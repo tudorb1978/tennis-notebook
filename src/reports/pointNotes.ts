@@ -14,10 +14,10 @@ export function pointNoteLabels(observations: PointObservations | undefined, nam
   for (const source of questionableCallSources(observations)) {
     labels.push(`Questionable call by ${callSourceLabel(source, names)}`);
   }
-  if (observations.disputed) {
-    const source = observations.callBy;
-    labels.push(source === null ? 'Disputed outcome' : `Disputed outcome · Call by ${callSourceLabel(source, names)}`);
-  }
+  const source = observations.callBy;
+  const callMaker = source === null || source === 'unknown' ? '' : ` · Call by ${callSourceLabel(source, names)}`;
+  if (observations.disputed) labels.push(`Call was disputed${callMaker}`);
+  if (observations.callIncorrect) labels.push(`Call was incorrect${callMaker}`);
   for (const side of [0, 1] as const) {
     for (const note of observations.playerNotes?.[side] ?? []) {
       labels.push(`${names[side]} · ${playerNoteLabels[note]}`);
@@ -28,12 +28,18 @@ export function pointNoteLabels(observations: PointObservations | undefined, nam
 
 export function pointNoteSummary(points: readonly RecordedPoint[], names: readonly [string, string]) {
   const rallies = { long: 0, 'very-long': 0, legacy: 0 };
-  const calls = { 0: 0, 1: 0, official: 0, unknown: 0 };
+  const callTallies = {
+    'Questionable calls': { 0: 0, 1: 0, official: 0, unknown: 0 },
+    'Disputed calls': { 0: 0, 1: 0, official: 0, unknown: 0 },
+    'Incorrect calls': { 0: 0, 1: 0, official: 0, unknown: 0 },
+  };
   const mindset = names.map(() => Object.fromEntries(playerNotes.map(note => [note, 0])) as Record<PlayerNote, number>) as [Record<PlayerNote, number>, Record<PlayerNote, number>];
   for (const { observations } of points) {
     const rally = rallyLengthOf(observations);
     if (rally) rallies[rally]++;
-    for (const source of questionableCallSources(observations)) calls[source]++;
+    for (const source of questionableCallSources(observations)) callTallies['Questionable calls'][source]++;
+    if (observations?.disputed) callTallies['Disputed calls'][observations.callBy ?? 'unknown']++;
+    if (observations?.callIncorrect) callTallies['Incorrect calls'][observations.callBy ?? 'unknown']++;
     for (const side of [0, 1] as const) {
       for (const note of observations?.playerNotes?.[side] ?? []) mindset[side][note]++;
     }
@@ -45,11 +51,12 @@ export function pointNoteSummary(points: readonly RecordedPoint[], names: readon
     if (rallies.legacy) lines.push(`${rallyLengthLabels.legacy} · ${rallies.legacy}`);
     sections.push({ title: 'Rally estimates', lines });
   }
-  if (calls[0] || calls[1] || calls.official || calls.unknown) {
+  for (const [title, calls] of Object.entries(callTallies)) {
+    if (!Object.values(calls).some(Boolean)) continue;
     const lines = [`${names[0]} · ${calls[0]}`, `${names[1]} · ${calls[1]}`];
     if (calls.official) lines.push(`Official · ${calls.official}`);
-    if (calls.unknown) lines.push(`Not known · ${calls.unknown}`);
-    sections.push({ title: 'Questionable calls', lines });
+    if (calls.unknown) lines.push(`Unattributed · ${calls.unknown}`);
+    sections.push({ title, lines });
   }
   for (const { title, notes } of playerNoteGroups) {
     if (!notes.some(note => mindset[0][note] || mindset[1][note])) continue;

@@ -102,7 +102,7 @@ export function reportCSV(record: MatchRecord): string {
   const { pointEntries } = replayMatchForReport(record);
   const names = [record.players[0].name, record.players[1].name] as const;
   const name = (side: Side | null) => side === null ? '' : record.players[side].name;
-  const rows: unknown[][] = [['Point', 'Date', 'Group', 'Stage', 'Games before', 'Points before', 'Server', 'Winner', 'Ending player', 'Ending', 'Stroke', 'First serve', 'Second serve', 'Return stroke', 'Return result', 'Long rally', 'Questionable call', 'Disputed', 'Call by', 'Notes', 'Rally length estimate', 'Questionable call by', 'Tracked player observations', 'Opponent observations']];
+  const rows: unknown[][] = [['Point', 'Date', 'Group', 'Stage', 'Games before', 'Points before', 'Server', 'Winner', 'Ending player', 'Ending', 'Stroke', 'First serve', 'Second serve', 'Return stroke', 'Return result', 'Long rally', 'Questionable call', 'Disputed', 'Call by', 'Notes', 'Rally length estimate', 'Questionable call by', 'Tracked player observations', 'Opponent observations', 'Incorrect call']];
   pointEntries.forEach(({ point: p }, index) => {
     const obs = p.observations;
     const rally = rallyLengthOf(obs);
@@ -111,6 +111,7 @@ export function reportCSV(record: MatchRecord): string {
       rally ? rallyLengthLabels[rally] : '',
       calls.map(source => callSourceLabel(source, names)).join(' | '),
       ...([0, 1] as const).map(side => obs?.playerNotes?.[side].map(note => playerNoteLabels[note]).join(' | ')),
+      obs?.callIncorrect,
     ]);
   });
   return rows.map(row => row.map(csvCell).join(',')).join('\r\n');

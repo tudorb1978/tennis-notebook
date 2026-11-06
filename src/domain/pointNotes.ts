@@ -36,11 +36,14 @@ export function rallyLengthOf(observations?: PointObservations) {
 }
 
 export function questionableCallSources(observations?: PointObservations): readonly CallSource[] {
+  if (observations?.callIncorrect !== undefined) {
+    return !observations.disputed && !observations.callIncorrect && observations.callBy !== null ? [observations.callBy] : [];
+  }
   return observations?.questionableCallsBy ?? (observations?.questionableCall ? [observations.callBy ?? 'unknown'] : []);
 }
 
 export function hasPointNotes(observations?: PointObservations) {
-  return Boolean(observations && (observations.notes || observations.disputed || rallyLengthOf(observations)
+  return Boolean(observations && (observations.notes || observations.disputed || observations.callIncorrect || rallyLengthOf(observations)
     || questionableCallSources(observations).length || observations.playerNotes?.some(notes => notes.length > 0)));
 }
 
@@ -49,7 +52,10 @@ function uniqueAllowed(values: unknown, allowed: readonly unknown[]): boolean {
     && values.every(value => allowed.includes(value));
 }
 
-export function validatePointNoteOptions(rallyLength: unknown, calls: unknown, notes: unknown) {
+export function validatePointNoteOptions(rallyLength: unknown, calls: unknown, notes: unknown, callIncorrect: unknown) {
+  if (callIncorrect !== undefined && typeof callIncorrect !== 'boolean') {
+    throw new Error('Invalid incorrect call flag.');
+  }
   if (rallyLength !== undefined && rallyLength !== null && rallyLength !== 'long' && rallyLength !== 'very-long') {
     throw new Error('Invalid rally estimate.');
   }

@@ -14,6 +14,8 @@ export interface PointObservations {
   readonly longRally: boolean;
   readonly questionableCall: boolean;
   readonly disputed: boolean;
+  /** Present when a call is recorded through the unified call controls. */
+  readonly callIncorrect?: boolean;
   readonly callBy: CallSource | null;
   readonly notes: string;
   readonly rallyLength?: RallyLength | null;
@@ -90,7 +92,7 @@ export function recordPoint(score: MatchScore, input: PointInput): { score: Matc
     if (obs.callBy !== null && obs.callBy !== 0 && obs.callBy !== 1 && !['official', 'unknown'].includes(obs.callBy)) throw new Error('Invalid call attribution.');
     if (typeof obs.notes !== 'string' || obs.notes.length > 2000) throw new Error('Notes must contain at most 2000 characters.');
     if ([obs.longRally, obs.questionableCall, obs.disputed].some(v => typeof v !== 'boolean')) throw new Error('Invalid point tags.');
-    validatePointNoteOptions(obs.rallyLength, obs.questionableCallsBy, obs.playerNotes);
+    validatePointNoteOptions(obs.rallyLength, obs.questionableCallsBy, obs.playerNotes, obs.callIncorrect);
     point = { ...point, observations: obs };
   }
   return { score: awardPoint(score, point.winner), point: {

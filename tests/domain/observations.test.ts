@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { appendEvent, replayMatch, undoLast } from '../../src/domain/history.ts';
 import type { MatchEvent } from '../../src/domain/history.ts';
 import { emptyObservations, recordPoint, summarisePoints } from '../../src/domain/points.ts';
+import { hasPointNotes } from '../../src/domain/pointNotes.ts';
 import { correctCurrentStage, createScore } from '../../src/domain/scoring.ts';
 import { presets } from '../../src/domain/presets.ts';
 import { pointNoteLabels, pointNoteSummary } from '../../src/reports/pointNotes.ts';
@@ -28,6 +29,24 @@ test('Point notes tally rally estimates once and keep legacy tags and each playe
     observations: { ...emptyObservations(), playerNotes: [['tired', 'tired'], []] },
   }), /Invalid player observations/);
 });
+test('Unified call notes distinguish disputed and incorrect calls and keep attribution optional', () => {
+  const names = ['Alex', 'Jamie'] as const;
+  const score = createScore(format, 0);
+  const both = recordPoint(score, { type: 'winner-only', winner: 0,
+    observations: { ...emptyObservations(), disputed: true, callIncorrect: true, callBy: 'official' } }).point;
+  const incorrect = recordPoint(score, { type: 'winner-only', winner: 0,
+    observations: { ...emptyObservations(), callIncorrect: true } }).point;
+  const questionable = recordPoint(score, { type: 'winner-only', winner: 0,
+    observations: { ...emptyObservations(), callIncorrect: false, callBy: 0 } }).point;
+  assert.deepEqual(pointNoteLabels(both.observations, names), ['Call was disputed · Call by Official', 'Call was incorrect · Call by Official']);
+  assert.equal(hasPointNotes(incorrect.observations), true);
+  assert.deepEqual(pointNoteSummary([both, incorrect, questionable], names), [
+    { title: 'Questionable calls', lines: ['Alex · 1', 'Jamie · 0'] },
+    { title: 'Disputed calls', lines: ['Alex · 0', 'Jamie · 0', 'Official · 1'] },
+    { title: 'Incorrect calls', lines: ['Alex · 0', 'Jamie · 0', 'Official · 1', 'Unattributed · 1'] },
+  ]);
+});
+
 test('Only observed serve and return results enter their statistic denominators', () => {
   const { point } = recordPoint(createScore(format, 0), { type: 'winner-only', winner: 1, observations: { ...emptyObservations(), firstServe: 'fault', secondServe: 'in', returnStroke: 'backhand', returnResult: 'in' } });
   const stats = summarisePoints([point]);

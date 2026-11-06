@@ -88,7 +88,7 @@ export function validateMatch(value: unknown): asserts value is MatchRecord {
   if (obs.secondServe === 'fault') throw new Error('A double fault must be recorded as a completed point.');
   if (!['forehand', 'backhand', 'other', 'unknown'].includes(obs.returnStroke as string) || !['in', 'error', 'unknown'].includes(obs.returnResult as string)) throw new Error('Invalid draft return.');
   if ([obs.longRally, obs.questionableCall, obs.disputed].some(v => typeof v !== 'boolean')) throw new Error('Invalid draft tags.');
-  validatePointNoteOptions(obs.rallyLength, obs.questionableCallsBy, obs.playerNotes);
+  validatePointNoteOptions(obs.rallyLength, obs.questionableCallsBy, obs.playerNotes, obs.callIncorrect);
   if (![null, 0, 1, 'official', 'unknown'].includes(obs.callBy as null | number | string)) throw new Error('Invalid call attribution.');
   text(obs.notes, 2000);
   const match = value as unknown as MatchRecord;

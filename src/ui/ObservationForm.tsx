@@ -62,24 +62,24 @@ export function PointNotesEditor({ input, names, busy, errorBlock, onSave }: {
   const c = useTheme();
   const layout = useLayout();
   const [mindsetExpanded, setMindsetExpanded] = useState(false);
-  const [observations, setObservations] = useState(() => {
-    const previous = input.observations ?? emptyObservations();
-    return previous.questionableCall ? { ...previous, questionableCallsBy: questionableCallSources(previous) } : previous;
-  });
+  const [observations, setObservations] = useState(() => input.observations ?? emptyObservations());
   const set = <K extends keyof PointObservations>(key: K, value: PointObservations[K]) =>
     setObservations(previous => ({ ...previous, [key]: value }));
-  const setQuestionableCall = (side: Side, checked: boolean) => setObservations(previous => {
-    const calls = questionableCallSources(previous).filter(source => typeof source === 'number' && source !== side);
-    return { ...previous, questionableCallsBy: checked ? [...calls, side] : calls };
-  });
   const setPlayerNote = (side: Side, note: PlayerNote, checked: boolean) => setObservations(previous => {
     const notes: [readonly PlayerNote[], readonly PlayerNote[]] = [...(previous.playerNotes ?? [[], []])];
     notes[side] = checked ? [...notes[side], note] : notes[side].filter(value => value !== note);
     return { ...previous, playerNotes: notes };
   });
   const rally = rallyLengthOf(observations);
-  const calls = questionableCallSources(observations);
-  const legacyCall = calls.find(source => typeof source !== 'number');
+  const legacyCalls = observations.callIncorrect === undefined ? questionableCallSources(observations) : [];
+  const source = observations.callIncorrect !== undefined || observations.disputed
+    ? observations.callBy : legacyCalls.length === 1 ? legacyCalls[0] : null;
+  const callBy = source === 'unknown' ? null : source ?? null;
+  const updateCall = (changes: Partial<Pick<PointObservations, 'callBy' | 'disputed' | 'callIncorrect'>>) =>
+    setObservations(previous => ({
+      ...previous, questionableCall: false, questionableCallsBy: [],
+      callBy, callIncorrect: previous.callIncorrect ?? false, ...changes,
+    }));
   const playerToggleStyle = { flex: 1, minWidth: 0, paddingHorizontal: 8 };
   const gridRow = { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 };
   const gridCell: ViewStyle = { width: '24%', minWidth: 48, paddingHorizontal: 0, paddingVertical: 6 };
@@ -107,23 +107,22 @@ export function PointNotesEditor({ input, names, busy, errorBlock, onSave }: {
       {rally === 'legacy' && <T small muted>Previously marked as a long rally. Choose an estimate if you remember the length.</T>}
     </Card>
     <Card style={{ padding: 12, gap: 9 }}>
-      <NoteSectionTitle icon="note" title="Questionable call" />
-      <Row style={{ flexWrap: 'nowrap', alignItems: 'stretch' }}>
-        {([0, 1] as const).map(side => <Toggle key={side} label={names[side]} style={playerToggleStyle} disabled={busy}
-          accessibilityLabel={`Questionable call by ${names[side]}`}
-          checked={calls.includes(side)} onChange={checked => setQuestionableCall(side, checked)}
-        />)}
-      </Row>
-      {legacyCall && <T small muted>{legacyCall === 'official' ? 'An earlier note attributed the call to an official.' : 'An earlier note marked a call without naming a player.'}</T>}
-      <Toggle label="Dispute about the outcome" checked={observations.disputed} disabled={busy} onChange={v => set('disputed', v)} />
-      {observations.disputed && <View style={{ gap: 6 }}>
+      <NoteSectionTitle icon="note" title="Questionable or disputed call" />
+      <View style={{ gap: 6 }}>
         <T small bold>Call made by</T>
         <Row style={{ flexWrap: 'nowrap', alignItems: 'stretch' }}>
-          {([0, 1, 'official'] as const).map(source => <Toggle key={source}
-            label={source === 'official' ? 'Official' : names[source]} style={playerToggleStyle} disabled={busy}
-            checked={observations.callBy === source} onChange={checked => set('callBy', checked ? source : null)} />)}
+          {([0, 1, 'official'] as const).map(maker => <Toggle key={maker}
+            label={maker === 'official' ? 'Official' : names[maker]} style={playerToggleStyle} disabled={busy}
+            checked={callBy === maker} onChange={checked => updateCall({ callBy: checked ? maker : null })} />)}
         </Row>
-      </View>}
+      </View>
+      {legacyCalls.some(maker => maker !== callBy) && <T small muted>Earlier call tags are kept until you edit this section.</T>}
+      <Row style={{ flexWrap: 'nowrap', alignItems: 'stretch' }}>
+        <Toggle label="Call was disputed" style={playerToggleStyle} checked={observations.disputed} disabled={busy}
+          onChange={disputed => updateCall({ disputed })} />
+        <Toggle label="Call was incorrect" style={playerToggleStyle} checked={observations.callIncorrect ?? false} disabled={busy}
+          onChange={callIncorrect => updateCall({ callIncorrect })} />
+      </Row>
     </Card>
     <Card style={{ padding: 12, gap: 8 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={marked ? `${mindsetTitle}, ${mindsetSummary}` : mindsetTitle}
