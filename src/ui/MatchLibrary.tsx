@@ -1,11 +1,12 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Image, Text, View, useWindowDimensions } from 'react-native';
 import { replayMatch } from '../domain/history.ts';
 import type { MatchScore } from '../domain/scoring.ts';
 import { resultLabel } from '../reports/report.ts';
 import type { MatchGroup } from '../storage/matchGroups.ts';
 import type { MatchRecord, PlayerProfile } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
+import { Icon } from './Icon.tsx';
 import { Button, Card, Choices, Eyebrow, Row, Stack, T, useTheme } from './kit.tsx';
 
 const statusLabels: Record<MatchScore['status'], string> = {
@@ -15,6 +16,12 @@ const statusLabels: Record<MatchScore['status'], string> = {
   retired: 'Retirement',
   abandoned: 'Abandoned',
 };
+
+const welcomeFeatures = [
+  { icon: 'record', title: 'Record live', detail: 'Keep score and note how each point ends.' },
+  { icon: 'chart', title: 'See patterns', detail: 'Review serves, shots and pressure points.' },
+  { icon: 'report', title: 'Share a report', detail: 'Send a match PDF to your coach.' },
+] as const;
 
 export function MatchLibrary({ groups, players, filter, busy, available, onFilter, onNewMatch, onAddToEvent, onPerformance, onOpenMatch }: {
   groups: readonly MatchGroup[];
@@ -29,43 +36,80 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
   onOpenMatch: (id: string) => void;
 }) {
   const c = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const wide = width >= 540 && fontScale <= 1.2;
+  const empty = groups.length === 0;
   const visibleGroups = groups.map(group => ({
     group, matches: group.matches.filter(match => filter === 'all' || match.players[0].id === filter),
   })).filter(group => group.matches.length > 0);
   const hasEvents = groups.some(group => group.named);
 
   return <Stack>
-    <View style={{ backgroundColor: c.court, borderRadius: 21, padding: 17, overflow: 'hidden', gap: 7 }}>
-      <CourtLines />
-      <Eyebrow style={{ color: c.lime }}>Match library</Eyebrow>
-      <Text accessibilityRole="header" style={{ color: c.courtInk, fontSize: 33, fontWeight: '700', letterSpacing: -1.2, lineHeight: 36 }}>Your tennis notebook</Text>
-      <T small style={{ color: c.courtSub }}>Record and review match play.</T>
+    <View style={{
+      backgroundColor: c.court, borderRadius: 22, padding: empty ? 22 : 20, overflow: 'hidden',
+      flexDirection: empty && wide ? 'row' : 'column', alignItems: empty && wide ? 'center' : 'stretch',
+      gap: empty ? 8 : 0,
+    }}>
+      {!empty && <CourtLines opacity={0.8} />}
+      <View style={{ flex: empty && wide ? 1 : undefined, minWidth: 0, gap: 8 }}>
+        <Eyebrow style={{ color: c.lime }}>{empty ? 'Courtside companion' : 'Match library'}</Eyebrow>
+        <Text accessibilityRole="header" style={{
+          color: c.courtInk, fontSize: empty ? 36 : 31, fontWeight: '700',
+          letterSpacing: -1.1, lineHeight: empty ? 40 : 36,
+        }}>Your tennis notebook</Text>
+        <T small style={{ color: c.courtSub, maxWidth: empty ? 280 : 360 }}>
+          {empty ? 'Capture each point as it happens and see what shaped the match.' : 'Record and review match play.'}
+        </T>
+      </View>
+      {empty && <Image source={require('../../assets/welcome-court.png')} accessible={false} resizeMode="contain"
+        style={{ width: wide ? '48%' : '100%', maxWidth: wide ? 264 : 250, height: wide ? 174 : 164, alignSelf: 'center' }} />}
     </View>
-    {groups.length > 0 && <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8 }}>
-      <Button primary style={{ flex: 1, minWidth: 0 }} testID="new-match" disabled={busy || !available} onPress={onNewMatch}>New match &amp; event</Button>
-      {hasEvents && <Button style={{ flex: 1, minWidth: 0 }} disabled={busy} onPress={onAddToEvent}>Add match to event</Button>}
+    {!empty && <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8 }}>
+      <Button primary icon="plus" style={{ flex: 1, minWidth: 0 }} testID="new-match" disabled={busy || !available} onPress={onNewMatch}>New match &amp; event</Button>
+      {hasEvents && <Button icon="calendar" style={{ flex: 1, minWidth: 0 }} disabled={busy} onPress={onAddToEvent}>Add match to event</Button>}
     </View>}
     {players.length > 0 && <View style={{ gap: 6 }}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Text accessibilityRole="header" style={{ color: c.ink, fontSize: 21, fontWeight: '700', letterSpacing: -0.45 }}>Match history</Text>
-        <Button quiet compact disabled={busy} onPress={() => onPerformance(null)}>Player performance</Button>
+        <Button quiet compact icon="chart" disabled={busy} onPress={() => onPerformance(null)}>Player performance</Button>
       </Row>
       <Choices compact label="Player" value={filter} options={[{ value: 'all', label: 'All players' }, ...players.map(player => ({ value: player.id, label: player.name }))]} onChange={onFilter} />
     </View>}
-    {groups.length === 0 ? <Button primary testID="new-match" disabled={busy || !available} onPress={onNewMatch}
-      style={{ minHeight: 72, borderRadius: 16, paddingHorizontal: 20 }}>
-      Start recording your first match
-    </Button> : visibleGroups.length === 0 && <Card style={{ gap: 6 }}>
+    {empty ? <>
+      <Button primary icon="plus" testID="new-match" disabled={busy || !available} onPress={onNewMatch}
+        style={{ minHeight: 64, borderRadius: 16, paddingHorizontal: 20 }}>
+        Start recording your first match
+      </Button>
+      <Card style={{ gap: 14, padding: 17 }}>
+        <T bold>From first point to final report</T>
+        <View style={{ flexDirection: wide ? 'row' : 'column', gap: wide ? 14 : 12 }}>
+          {welcomeFeatures.map(({ icon, title, detail }) => <View key={title} style={{
+            flex: wide ? 1 : undefined, minWidth: 0, flexDirection: wide ? 'column' : 'row', alignItems: 'flex-start', gap: 9,
+          }}>
+            <View style={{ width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: c.soft }}>
+              <Icon name={icon} color={c.accent} size={18} />
+            </View>
+            <View style={{ flex: wide ? undefined : 1, minWidth: 0, gap: 2 }}>
+              <T small bold>{title}</T>
+              <T small muted>{detail}</T>
+            </View>
+          </View>)}
+        </View>
+      </Card>
+    </> : visibleGroups.length === 0 && <Card style={{ gap: 6 }}>
       <T bold>No matches for this player</T>
       <T muted small>Choose another player to see their matches.</T>
     </Card>}
     {visibleGroups.map(({ group, matches }) => <View key={group.key} style={{ gap: 8 }}>
       <Row style={{ justifyContent: 'space-between' }}>
         <View style={{ flex: 1, minWidth: 104 }}>
-          <T small muted>{group.dateLabel}</T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Icon name="calendar" size={13} color={c.sub} />
+            <T small muted style={{ flexShrink: 1 }}>{group.dateLabel}</T>
+          </View>
           <T bold style={{ fontSize: 19, lineHeight: 23, letterSpacing: -0.3 }}>{group.name}</T>
         </View>
-        {group.named && <Button quiet compact disabled={busy} onPress={() => onPerformance(group)}>Event performance</Button>}
+        {group.named && <Button quiet compact icon="chart" disabled={busy} onPress={() => onPerformance(group)}>Event performance</Button>}
       </Row>
       {matches.map(match => {
         const { score, points } = replayMatch(match.format, match.firstServer, match.events);
@@ -84,7 +128,7 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
             <View style={{ backgroundColor: active ? c.soft : c.bg, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 9 }}>
               <T small bold style={{ color: active ? c.ink : c.sub }}>{status}</T>
             </View>
-            <T bold muted>›</T>
+            <Icon name="chevron-right" size={16} color={c.sub} />
           </View>
         </Button>;
       })}

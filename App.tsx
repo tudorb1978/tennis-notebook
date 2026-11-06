@@ -30,9 +30,15 @@ import { Scoreboard } from './src/ui/Scoreboard.tsx';
 import { MatchComparison, PressurePoints, StatsTable } from './src/ui/Stats.tsx';
 import { PlayerPerformance } from './src/ui/PlayerPerformance.tsx';
 import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
+import { Icon } from './src/ui/Icon.tsx';
 
 type Screen = 'loading' | 'home' | 'setup' | 'match' | 'player-report';
 type Tab = 'record' | 'history' | 'report';
+const matchTabs = [
+  { value: 'record', label: 'Record', icon: 'record' },
+  { value: 'history', label: 'History', icon: 'history' },
+  { value: 'report', label: 'Report', icon: 'report' },
+] as const;
 type PointPanel = 'edit-point' | 'point-notes';
 type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'settings' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
 function AwakeWhileRecording() { useKeepAwake('tennis-recording'); return null; }
@@ -328,7 +334,10 @@ function Main() {
           >{endingNames[ending]}</Button>)}
         </View>
       </Card> : <Card style={{ padding: 10, gap: 8 }}>
-        <T bold style={{ fontSize: 19 }}>Who won the point?</T>
+        <Row>
+          <Icon name="record" color={c.accent} size={19} />
+          <T bold style={{ fontSize: 19, flexShrink: 1 }}>Who won the point?</T>
+        </Row>
         <View style={layout.two}>
           {([0, 1] as const).map(side => {
             const name = record.players[side].name;
@@ -365,11 +374,11 @@ function Main() {
     const names = [record.players[0].name, record.players[1].name] as const;
     const actions = record.events.filter(event => event.type !== 'point');
     return <Stack>
-      <View style={{ gap: 4 }}>
-        <Eyebrow>Point log</Eyebrow>
+      <Card style={{ gap: 5 }}>
+        <Row><Icon name="history" color={c.accent} /><Eyebrow>Point log</Eyebrow></Row>
         <Heading>Point history</Heading>
         <T small muted>{projection.points.length} points recorded · Newest first</T>
-      </View>
+      </Card>
       {projection.hasScoreCorrections && <Notice>The score includes manual corrections. These do not create shot statistics.</Notice>}
       {[...projection.pointEntries].reverse().map(({ id, point }, index) => <Card key={id} style={{ gap: 5 }}>
         <Eyebrow>Point {projection.points.length - index} · Stage {point.context.stage + 1}</Eyebrow>
@@ -401,18 +410,19 @@ function Main() {
     const { stats } = projection;
 
     return <Stack>
-      <View style={{ gap: 4 }}>
+      <Card style={{ gap: 6 }}>
+        <Row><Icon name="report" color={c.accent} /><Eyebrow>Match analysis</Eyebrow></Row>
         <Heading>Match report</Heading>
         <T small muted>{record.date} · {record.format.name}</T>
         {context ? <T small muted>{context}</T> : null}
-      </View>
+      </Card>
       <Row style={{ alignItems: 'stretch' }}>
-        <Button primary disabled={busy} onPress={() => void external(async () => { await sharePDF(record); })}>PDF report</Button>
-        <Button disabled={busy} onPress={() => void external(async () => { await shareText(`tennis-match-${record.id}.csv`, reportCSV(record), 'text/csv'); })}>Export points CSV</Button>
+        <Button primary icon="report" disabled={busy} onPress={() => void external(async () => { await sharePDF(record); })}>PDF report</Button>
+        <Button icon="download" disabled={busy} onPress={() => void external(async () => { await shareText(`tennis-match-${record.id}.csv`, reportCSV(record), 'text/csv'); })}>Export points CSV</Button>
       </Row>
       <Card style={{ gap: 5 }}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <T bold>Match notes</T>
+          <Row><Icon name="note" color={c.accent} /><T bold>Match notes</T></Row>
           <Button quiet compact disabled={busy} onPress={openMatchNotes}>{matchNotes ? 'Edit match notes' : 'Add match notes'}</Button>
         </Row>
         {matchNotes ? <T>{matchNotes}</T> : <T small muted>Add observations about the match as a whole.</T>}
@@ -493,10 +503,10 @@ function Main() {
         <Image source={require('./assets/tennis-notebook.png')} style={{ width: 34, height: 34, borderRadius: 8 }} accessible={false} />
         {screen === 'home' || screen === 'loading'
           ? <T bold>Tennis Notebook</T>
-          : <Button quiet compact={showRecordingNotes} testID="back-to-matches" disabled={busy} onPress={() => void home()}>‹ Matches</Button>}
+          : <Button quiet compact={showRecordingNotes} icon="chevron-left" testID="back-to-matches" disabled={busy} onPress={() => void home()}>Matches</Button>}
       </View>
       {busy ? <View accessibilityLiveRegion="polite"><T small muted>Saving…</T></View>
-        : screen === 'home' ? <Button quiet compact disabled={repository.current === null} onPress={() => { setError(''); setPanel({ kind: 'settings' }); }}>Settings</Button>
+        : screen === 'home' ? <Button icon="settings" compact style={{ paddingHorizontal: 10 }} disabled={repository.current === null} onPress={() => { setError(''); setPanel({ kind: 'settings' }); }}>Settings</Button>
         : screen === 'match' && record && <Row style={{ flex: 1, minWidth: 0, justifyContent: 'flex-end', gap: 4 }}>
           {showRecordingNotes && <Button quiet compact onPress={openMatchNotes}>Match notes</Button>}
           <Button quiet compact={showRecordingNotes} onPress={() => { setError(''); setPanel({ kind: 'match-details' }); }}>Match details</Button>
@@ -522,8 +532,21 @@ function Main() {
       </ScrollView>
     </KeyboardAvoidingView>
     {screen === 'match' && <View style={layout.footer}><View style={layout.footerContent}>
-      <Button testID="undo" label="Undo last action" quiet style={{ paddingHorizontal: 9 }} disabled={busy || !projection?.lastActionId} onPress={() => void mutate(m => ({ ...m, events: undoLast(m.format, m.firstServer, m.events, randomUUID()), draft: emptyDraft() }))}>Undo</Button>
-      {(['record', 'history', 'report'] as const).map(value => <Button key={value} testID={`tab-${value}`} toggle compact style={{ flex: 1, paddingHorizontal: 6 }} quiet={tab !== value} selected={tab === value} disabled={busy} onPress={() => { setTab(value); setNotice(''); }}>{value === 'record' ? 'Record' : value === 'history' ? 'History' : 'Report'}</Button>)}
+      <Button testID="undo" label="Undo last action" quiet compact style={{ paddingHorizontal: 6 }} disabled={busy || !projection?.lastActionId} onPress={() => void mutate(m => ({ ...m, events: undoLast(m.format, m.firstServer, m.events, randomUUID()), draft: emptyDraft() }))}>
+        <View style={{ alignItems: 'center', gap: 3 }}><Icon name="undo" color={c.sub} size={17} /><T small muted style={{ fontSize: 11, lineHeight: 15 }}>Undo</T></View>
+      </Button>
+      {matchTabs.map(({ value, label, icon }) => {
+        const selected = tab === value;
+        const color = selected ? c.accent : c.sub;
+        return <Button key={value} testID={`tab-${value}`} label={label} toggle compact quiet selected={selected} disabled={busy}
+          style={{ flex: 1, paddingHorizontal: 6, backgroundColor: selected ? c.soft : 'transparent', borderColor: 'transparent' }}
+          onPress={() => { setTab(value); setNotice(''); }}>
+          <View style={{ alignItems: 'center', gap: 3 }}>
+            <Icon name={icon} color={color} size={17} />
+            <T small bold style={{ color, fontSize: 11, lineHeight: 15 }}>{label}</T>
+          </View>
+        </Button>;
+      })}
     </View></View>}
 
     <Modal visible={panel !== null || guideOpen} transparent animationType="none" onRequestClose={() => {
@@ -533,14 +556,16 @@ function Main() {
       {guideOpen && <ScrollView contentContainerStyle={layout.content}>
         <OutcomeGuide onClose={() => setGuideOpen(false)} />
       </ScrollView>}
-      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end' }}><Button quiet disabled={busy} onPress={() => { setPanel(null); setError(''); }}>{panel?.kind === 'settings' ? 'Done' : 'Cancel'}</Button></Row>}
+      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end', borderBottomWidth: 1, borderColor: c.line, backgroundColor: c.card }}><Button quiet compact icon="close" disabled={busy} onPress={() => { setPanel(null); setError(''); }}>{panel?.kind === 'settings' ? 'Done' : 'Cancel'}</Button></Row>}
       <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? 'closed'} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>{errorBlock}
       {panel?.kind === 'settings' && <Stack>
         <Heading>Settings</Heading>
-        <T bold>Backup and restore</T>
-        <T small muted>Save a copy of your records before moving phones or uninstalling.</T>
-        <Button disabled={busy} onPress={() => void exportBackup()}>Back up all records</Button>
-        <Button disabled={busy} onPress={() => void restore()}>Restore backup</Button>
+        <Card>
+          <Row><Icon name="settings" color={c.accent} /><T bold>Backup and restore</T></Row>
+          <T small muted>Save a copy of your records before moving phones or uninstalling.</T>
+          <Button icon="download" disabled={busy} onPress={() => void exportBackup()}>Back up all records</Button>
+          <Button icon="upload" disabled={busy} onPress={() => void restore()}>Restore backup</Button>
+        </Card>
       </Stack>}
       {(panel?.kind === 'pick-event-for-match' || panel?.kind === 'pick-event-for-report') && <Stack>
         <Heading>{panel.kind === 'pick-event-for-match' ? 'Add match to event' : 'Choose report event'}</Heading>

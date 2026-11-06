@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { localDate } from '../domain/matchDates.ts';
 import type { MatchGroup } from '../storage/matchGroups.ts';
 import type { PresetId } from '../domain/presets.ts';
@@ -11,6 +11,8 @@ import { matchNotesMaxLength } from '../storage/model.ts';
 import type { MatchRecord, PlayerProfile, RecordingMode } from '../storage/model.ts';
 import { endingNames, strokeNames } from '../reports/report.ts';
 import { Button, Card, Choices, Divider, Eyebrow, Field, Heading, Notice, Row, Stack, T, useTheme } from './kit.tsx';
+import { CourtLines } from './CourtLines.tsx';
+import { Icon } from './Icon.tsx';
 import { ServeObservations } from './ObservationForm.tsx';
 import { OutcomeHelpButton } from './OutcomeGuide.tsx';
 
@@ -97,6 +99,14 @@ const setupFormats: { id: PresetId; title: string; detail: string }[] = [
   { id: 'normal-match-tiebreak', title: 'Normal sets + match tie-break', detail: 'Sets to 6 games · deciding tie-break to 10' },
 ];
 
+function SetupSectionTitle({ icon, children }: { icon: 'players' | 'court'; children: string }) {
+  const c = useTheme();
+  return <Row>
+    <Icon name={icon} color={c.accent} size={18} />
+    <T bold>{children}</T>
+  </Row>;
+}
+
 export function SetupForm({ players, event, preferredPlayerId, busy, onStart }: {
   players: PlayerProfile[];
   event: MatchGroup | null;
@@ -116,29 +126,32 @@ export function SetupForm({ players, event, preferredPlayerId, busy, onStart }: 
   const name = (players.find(p => p.id === values.playerId)?.name ?? values.playerName.trim()) || 'Your player';
 
   return <Stack>
-    <View style={{ gap: 5 }}>
-      <Eyebrow style={{ color: c.accent }}>Match setup</Eyebrow>
-      <Heading>Ready for play</Heading>
-      <T small muted>Choose the players, format and how much to record.</T>
-    </View>
+    <Card style={{ backgroundColor: c.court, borderColor: c.courtLine, overflow: 'hidden', padding: 18, gap: 5 }}>
+      <CourtLines opacity={0.45} />
+      <Eyebrow style={{ color: c.lime }}>Match setup</Eyebrow>
+      <Text accessibilityRole="header" style={{ fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.7, color: c.courtInk }}>Ready for play</Text>
+      <T small style={{ color: c.courtSub }}>Choose the players, format and how much to record.</T>
+    </Card>
     {event && <Notice>Adding to {event.name}</Notice>}
     <Card>
-      <T bold>Players</T>
+      <SetupSectionTitle icon="players">Players</SetupSectionTitle>
       {players.length > 0 && <Choices label="Your player" value={values.playerId} options={[...players.map(p => ({ value: p.id, label: p.name })), { value: '', label: '+ New player' }]} onChange={v => update('playerId', v)} disabled={busy} />}
       {!values.playerId && <Field label="Your player’s name" testID="new-player-name" value={values.playerName} onChange={v => update('playerName', v)} maxLength={80} />}
       <Field label="Opponent’s name" testID="opponent-name" value={values.opponent} onChange={v => update('opponent', v)} maxLength={80} />
     </Card>
     <Card>
-      <T bold>Match format</T>
+      <SetupSectionTitle icon="court">Match format</SetupSectionTitle>
       <View style={{ gap: 7 }}>
         {setupFormats.map(format => {
           const selected = values.preset === format.id;
           return <Button key={format.id} testID={format.id} label={format.title} selected={selected} toggle disabled={busy}
             onPress={() => update('preset', format.id)}
-            style={{ backgroundColor: selected ? c.soft : c.card, borderColor: selected ? c.accent : c.line, paddingVertical: 8 }}>
+            style={{ backgroundColor: selected ? c.soft : c.bg, borderColor: selected ? c.accent : c.line, paddingVertical: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={{ width: 16, height: 16, borderRadius: 8, borderWidth: selected ? 5 : 1, borderColor: selected ? c.accent : c.sub }} />
-              <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: selected ? c.accent : c.sub, alignItems: 'center', justifyContent: 'center' }}>
+                {selected && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.accent }} />}
+              </View>
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                 <T bold style={{ fontSize: 14, lineHeight: 19 }}>{format.title}</T>
                 <T small muted>{format.detail}</T>
               </View>
@@ -146,26 +159,31 @@ export function SetupForm({ players, event, preferredPlayerId, busy, onStart }: 
           </Button>;
         })}
       </View>
-      <T small muted>{values.preset.startsWith('fast4') ? 'Deciding point at deuce. Set tie-break at 3–3 to 7, two clear.' : 'Advantage games. Sets by two games. Set tie-break at 6–6 to 7, two clear.'}{values.preset !== 'fast4-single' ? ' At one set each, a match tie-break to 10, two clear.' : ''}</T>
+      <View style={{ backgroundColor: c.bg, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8 }}>
+        <T small muted>{values.preset.startsWith('fast4') ? 'Deciding point at deuce. Set tie-break at 3–3 to 7, two clear.' : 'Advantage games. Sets by two games. Set tie-break at 6–6 to 7, two clear.'}{values.preset !== 'fast4-single' ? ' At one set each, a match tie-break to 10, two clear.' : ''}</T>
+      </View>
       <Divider />
       <Choices<Side> label="First server" value={values.firstServer} options={[{ value: 0, label: name }, { value: 1, label: values.opponent.trim() || 'Opponent' }]} onChange={v => update('firstServer', v)} disabled={busy} />
     </Card>
     <Card>
-      <Choices compact label="Recording depth" value={values.mode} options={modeOptions} onChange={v => update('mode', v)} disabled={busy} />
+      <Choices compact labelIcon="sliders" label="Recording depth" value={values.mode} options={modeOptions} onChange={v => update('mode', v)} disabled={busy} />
       <T small muted>{values.mode === 'score' ? 'Record who won each point.' : values.mode === 'endings' ? 'Record the winning shot or error on each point.' : 'Record serves, returns and how each point ended.'}</T>
     </Card>
     <Card style={{ gap: 8 }}>
       {!event && <Field label="Tournament or group" value={values.group} onChange={v => update('group', v)} placeholder="Optional" />}
       <Button quiet label={extra ? 'Hide event and conditions' : 'Date, event and conditions'} onPress={() => setExtra(v => !v)} disabled={busy}
         style={{ paddingHorizontal: 0 }}>
-        <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+        <Row style={{ flexWrap: 'nowrap' }}>
+          <Icon name="calendar" color={c.accent} size={18} />
           <T small bold style={{ flex: 1 }}>{extra ? 'Hide event and conditions' : 'Date, event and conditions'}</T>
-          <T bold muted>{extra ? '−' : '+'}</T>
+          <View style={{ transform: [{ rotate: extra ? '-90deg' : '90deg' }] }}>
+            <Icon name="chevron-right" color={c.sub} size={16} />
+          </View>
         </Row>
       </Button>
       {extra && <MatchContextFields values={values} update={details => setValues(previous => ({ ...previous, ...details }))} />}
     </Card>
-    <Button primary testID="start-match" disabled={busy} onPress={() => onStart(values)}>{busy ? 'Saving…' : 'Start recording'}</Button>
+    <Button primary icon="record" testID="start-match" disabled={busy} onPress={() => onStart(values)}>{busy ? 'Saving…' : 'Start recording'}</Button>
   </Stack>;
 }
 

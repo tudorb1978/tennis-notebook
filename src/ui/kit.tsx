@@ -2,6 +2,8 @@ import React, { createContext, useContext, useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { Side } from '../domain/scoring.ts';
+import { Icon } from './Icon.tsx';
+import type { IconName } from './Icon.tsx';
 
 const court = { court: '#15382b', courtInk: '#f6f9ef', courtSub: '#c4d6c7', courtLine: '#49675a', lime: '#e0f2ae', limeInk: '#183325' };
 const light = { ...court, bg: '#f4f5ed', card: '#ffffff', ink: '#192f25', sub: '#506257', line: '#d2dbcf', accent: '#214a38', on: '#ffffff', soft: '#e8f0dd', error: '#a22e28' };
@@ -26,15 +28,19 @@ export function PlayerBadge({ side, children, numberOfLines, style }: { side: Si
     <Text numberOfLines={numberOfLines} style={{ color: ink, fontSize: 14, lineHeight: 19, fontWeight: '700' }}>{children}</Text>
   </View>;
 }
-export function Button({ children, onPress, primary = false, quiet = false, compact = false, selected = false, toggle = false, destructive = false, disabled = false, testID, style, label }: { children: React.ReactNode; onPress: () => void; primary?: boolean; quiet?: boolean; compact?: boolean; selected?: boolean; toggle?: boolean; destructive?: boolean; disabled?: boolean; testID?: string; style?: StyleProp<ViewStyle>; label?: string }) {
+export function Button({ children, onPress, primary = false, quiet = false, compact = false, selected = false, toggle = false, destructive = false, disabled = false, testID, style, label, icon }: { children: React.ReactNode; onPress: () => void; primary?: boolean; quiet?: boolean; compact?: boolean; selected?: boolean; toggle?: boolean; destructive?: boolean; disabled?: boolean; testID?: string; style?: StyleProp<ViewStyle>; label?: string; icon?: IconName }) {
   const c = useTheme(); const filled = primary || selected || destructive;
   const fillColor = destructive ? c.error : c.accent;
   const textOnly = React.Children.toArray(children).every(child => typeof child === 'string' || typeof child === 'number');
+  const color = filled ? c.on : quiet ? c.sub : c.ink;
+  const content = textOnly ? <Text style={{ textAlign: 'center', color, fontSize: compact ? 13 : 15, fontWeight: '600', flexShrink: 1 }}>{children}</Text> : children;
   return <Pressable accessibilityRole={toggle && Platform.OS !== 'web' ? 'togglebutton' : 'button'} accessibilityLabel={label}
     accessibilityState={toggle ? { disabled, checked: selected } : { disabled, selected }}
     aria-pressed={toggle && Platform.OS === 'web' ? selected : undefined} testID={testID} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [{ minHeight: 48, minWidth: 48, justifyContent: 'center', paddingHorizontal: compact ? 3 : 13, paddingVertical: compact ? 6 : 11, borderRadius: 11, borderWidth: 1, borderColor: filled ? fillColor : quiet ? 'transparent' : c.line, backgroundColor: filled ? fillColor : quiet ? 'transparent' : c.card, opacity: disabled ? 0.4 : pressed ? 0.75 : 1 }, style]}>
-    {textOnly ? <Text style={{ textAlign: 'center', color: filled ? c.on : quiet ? c.sub : c.ink, fontSize: compact ? 13 : 15, fontWeight: '600' }}>{children}</Text> : children}
+    style={({ pressed }) => [{ minHeight: 48, minWidth: 48, justifyContent: 'center', paddingHorizontal: compact ? 3 : 13, paddingVertical: compact ? 6 : 11, borderRadius: 12, borderWidth: 1, borderColor: filled ? fillColor : quiet ? 'transparent' : c.line, backgroundColor: filled ? fillColor : quiet ? 'transparent' : c.card, opacity: disabled ? 0.4 : pressed ? 0.78 : 1 }, style]}>
+    {icon ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+      <Icon name={icon} color={color} size={compact ? 15 : 17} />{content}
+    </View> : content}
   </Pressable>;
 }
 export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) { const c = useTheme(); return <View style={[{ backgroundColor: c.card, borderColor: c.line, borderWidth: 1, borderRadius: 17, padding: 15, gap: 12 }, style]}>{children}</View>; }
@@ -44,8 +50,13 @@ export function Field({ label, value, onChange, multiline = false, numeric = fal
   const c = useTheme();
   return <View style={{ gap: 6 }}><T small bold>{label}</T><TextInput accessibilityLabel={label} testID={testID} value={value} onChangeText={onChange} multiline={multiline} maxLength={maxLength} placeholder={placeholder} placeholderTextColor={c.sub} inputMode={numeric ? 'numeric' : 'text'} autoCorrect={!numeric} style={{ backgroundColor: c.card, color: c.ink, borderColor: c.line, borderWidth: 1, borderRadius: 10, padding: 12, minHeight: multiline ? 95 : 48, fontSize: 16, textAlignVertical: multiline ? 'top' : 'center' }} /></View>;
 }
-export function Choices<T extends string | number>({ label, value, options, onChange, disabled = false, compact = false }: { label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (value: T) => void; disabled?: boolean; compact?: boolean }) {
-  return <View style={{ gap: compact ? 3 : 7 }}><T small bold>{label}</T><Row style={compact ? { gap: 4 } : undefined}>{options.map(option => <Button key={String(option.value)} compact={compact} toggle selected={value === option.value} onPress={() => onChange(option.value)} disabled={disabled}>{option.label}</Button>)}</Row></View>;
+export function Choices<T extends string | number>({ label, value, options, onChange, disabled = false, compact = false, labelIcon }: { label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (value: T) => void; disabled?: boolean; compact?: boolean; labelIcon?: IconName }) {
+  const c = useTheme();
+  const caption = <T small bold>{label}</T>;
+  return <View style={{ gap: compact ? 3 : 7 }}>
+    {labelIcon ? <Row><Icon name={labelIcon} color={c.accent} />{caption}</Row> : caption}
+    <Row style={compact ? { gap: 4 } : undefined}>{options.map(option => <Button key={String(option.value)} compact={compact} toggle selected={value === option.value} onPress={() => onChange(option.value)} disabled={disabled}>{option.label}</Button>)}</Row>
+  </View>;
 }
 export function Toggle({ label, checked, onChange, accessibilityLabel = label, style, disabled = false }: { label: string; checked: boolean; onChange: (checked: boolean) => void; accessibilityLabel?: string; style?: StyleProp<ViewStyle>; disabled?: boolean }) {
   return <Button toggle selected={checked} label={accessibilityLabel} style={style} disabled={disabled} onPress={() => onChange(!checked)}>{label}</Button>;

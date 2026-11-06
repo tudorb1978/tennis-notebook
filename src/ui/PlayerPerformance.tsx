@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { isMatchDate, localDate, monthsBefore } from '../domain/matchDates.ts';
 import { performanceCountLabels, playerPerformance } from '../reports/playerPerformance.ts';
 import type { PlayerPerformanceReport } from '../reports/playerPerformance.ts';
 import { matchEventKey } from '../storage/matchGroups.ts';
 import type { MatchGroup } from '../storage/matchGroups.ts';
 import type { MatchRecord, PlayerProfile } from '../storage/model.ts';
-import { Button, Card, Choices, Field, Heading, Notice, Stack, T, useTheme } from './kit.tsx';
+import { CourtLines } from './CourtLines.tsx';
+import { Icon } from './Icon.tsx';
+import { Button, Card, Choices, Eyebrow, Field, Notice, Stack, T, useTheme } from './kit.tsx';
 import { PressurePoints, StatsTable } from './Stats.tsx';
 
 const periods = [
@@ -48,16 +50,27 @@ export function PlayerPerformance({ players, matches, playerId, event, hasEvents
   const eventLabel = event ? `Event · ${event.name}` : 'Event · All events';
 
   return <Stack>
-    <View style={{ gap: 4 }}>
-      <Heading>Player performance</Heading>
-      <T small muted>Review totals across matches.</T>
+    <View style={{ backgroundColor: c.court, borderRadius: 20, padding: 18, overflow: 'hidden', gap: 10 }}>
+      <CourtLines opacity={0.8} />
+      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.lime, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="chart" size={19} color={c.limeInk} />
+      </View>
+      <View style={{ gap: 3 }}>
+        <Text accessibilityRole="header" style={{ color: c.courtInk, fontSize: 25, lineHeight: 30, fontWeight: '700', letterSpacing: -0.6 }}>Player performance</Text>
+        <T small style={{ color: c.courtSub }}>Review totals across matches.</T>
+      </View>
     </View>
     <Card>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Icon name="sliders" size={18} color={c.accent} />
+        <T bold>Report filters</T>
+      </View>
       <Choices label="Player" value={playerId} options={players.map(player => ({ value: player.id, label: player.name }))} onChange={onPlayer} disabled={busy} />
-      {hasEvents && <Button label={eventLabel} disabled={busy} onPress={onChooseEvent}>
+      {hasEvents && <Button label={eventLabel} disabled={busy} onPress={onChooseEvent} style={{ backgroundColor: c.bg }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <T small bold style={{ flex: 1 }}>{eventLabel}</T>
-          <T bold muted>›</T>
+          <Icon name="calendar" size={17} color={c.accent} />
+          <T small bold style={{ flex: 1, minWidth: 0 }}>{eventLabel}</T>
+          <Icon name="chevron-right" size={16} color={c.sub} />
         </View>
       </Button>}
       <Choices<Period> label="Period" value={period} options={periods} onChange={setPeriod} disabled={busy} />
@@ -70,15 +83,20 @@ export function PlayerPerformance({ players, matches, playerId, event, hasEvents
       : report.matchCount === 0 ? <Notice>No matches for this player in the selected event and period.</Notice>
       : <>
         <Card style={{ backgroundColor: c.soft, gap: 6 }}>
+          <Eyebrow>Report scope</Eyebrow>
           <T small muted>{report.scope}</T>
-          {performanceCountLabels(report).map((label, index) => <T key={label} small={index !== 0} bold={index === 0}>{label}</T>)}
+          {performanceCountLabels(report).map((label, index) => <T key={label} small={index !== 0} bold={index === 0}
+            style={index === 0 ? { fontSize: 20, lineHeight: 26, letterSpacing: -0.4 } : { fontVariant: ['tabular-nums'] }}>{label}</T>)}
+          <Button icon="download" disabled={busy} onPress={() => onExport(report)} style={{ marginTop: 6, alignSelf: 'flex-start' }}>Export player PDF</Button>
         </Card>
-        <Button disabled={busy} onPress={() => onExport(report)}>Export player PDF</Button>
         <PressurePoints names={[report.name]} stats={[report.stats]} />
         <StatsTable name={report.name} stats={report.stats} />
         {report.hasScoreCorrections && <Notice>Some matches contain score corrections. Statistics use recorded observations only.</Notice>}
         {report.noteSummary.map(section => <Card key={section.title} style={{ gap: 7 }}>
-          <T bold>{section.title}</T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Icon name="note" size={18} color={c.accent} />
+            <T bold style={{ flex: 1, minWidth: 0 }}>{section.title}</T>
+          </View>
           {section.lines.map(line => <T key={line} small>{line}</T>)}
         </Card>)}
       </>}
