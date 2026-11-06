@@ -8,14 +8,26 @@ export const rallyLengthLabels = {
 } as const;
 export type RallyLength = Exclude<keyof typeof rallyLengthLabels, 'legacy'>;
 
-export const playerNoteLabels = {
+const positivePlayerNotes = {
+  'great-effort': 'Great effort',
+  'positive-attitude': 'Positive attitude',
+  'positive-body-language': 'Positive body language',
+  'calming-techniques': 'Uses calming techniques',
+  'resets-after-setback': 'Resets after a setback',
+} as const;
+const negativePlayerNotes = {
   frustration: 'Anger or frustration (racket smashing or tears)',
   'body-language': 'Bad body language',
   'giving-up': 'Looks like giving up',
   'low-effort': 'Doesn’t show enough effort',
   tired: 'Looks tired',
 } as const;
+export const playerNoteLabels = { ...positivePlayerNotes, ...negativePlayerNotes };
 export type PlayerNote = keyof typeof playerNoteLabels;
+export const playerNoteGroups = [
+  { title: 'Positive', notes: Object.keys(positivePlayerNotes) as PlayerNote[] },
+  { title: 'Negative', notes: Object.keys(negativePlayerNotes) as PlayerNote[] },
+] as const;
 export const playerNotes = Object.keys(playerNoteLabels) as PlayerNote[];
 export type CallSource = Side | 'official' | 'unknown';
 

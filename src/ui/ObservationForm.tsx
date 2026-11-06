@@ -4,7 +4,7 @@ import type { ViewStyle } from 'react-native';
 import { emptyObservations } from '../domain/points.ts';
 import type { PointInput, PointObservations } from '../domain/points.ts';
 import type { Side } from '../domain/scoring.ts';
-import { playerNoteLabels, playerNotes, questionableCallSources, rallyLengthLabels, rallyLengthOf } from '../domain/pointNotes.ts';
+import { playerNoteGroups, playerNoteLabels, questionableCallSources, rallyLengthLabels, rallyLengthOf } from '../domain/pointNotes.ts';
 import type { CallSource, PlayerNote } from '../domain/pointNotes.ts';
 import { Button, Card, Choices, Divider, Field, Heading, Row, Stack, T, Toggle, useTheme } from './kit.tsx';
 import { Icon } from './Icon.tsx';
@@ -109,21 +109,23 @@ export function PointNotesEditor({ input, names, busy, onSave }: {
       {mindsetExpanded && <>
         <Divider />
         <T small muted>Choose the player who showed each behaviour.</T>
-        <View style={gridRow}>
-          <View style={{ flex: 1 }} />
-          {names.map((name, side) => <Text key={side} numberOfLines={1} accessibilityLabel={name} style={{
-            width: gridCell.width, minWidth: gridCell.minWidth, textAlign: 'center', fontSize: 11, fontWeight: '700', color: c.ink,
-          }}>{columnNames[side]}</Text>)}
-        </View>
-        {playerNotes.map(note => <View key={note} style={{ ...gridRow, borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line, paddingTop: 6 }}>
-          <T small style={{ flex: 1, paddingRight: 3 }}>{playerNoteLabels[note]}</T>
-          {([0, 1] as const).map(side => {
-            const checked = observations.playerNotes?.[side].includes(note) ?? false;
-            return <Toggle key={side} label={checked ? '✓' : '+'} style={gridCell} disabled={busy}
-              accessibilityLabel={`${names[side]} · ${playerNoteLabels[note]}`}
-              checked={checked} onChange={value => setPlayerNote(side, note, value)}
-            />;
-          })}
+        {playerNoteGroups.map(({ title, notes }) => <View key={title} style={{ gap: 6, marginTop: 4 }}>
+          <View style={{ ...gridRow, borderRadius: 8, paddingVertical: 6, backgroundColor: title === 'Positive' ? c.soft : c.bg }}>
+            <T small bold style={{ flex: 1, paddingLeft: 8 }}>{title}</T>
+            {names.map((name, side) => <Text key={side} numberOfLines={1} accessibilityLabel={name} style={{
+              width: gridCell.width, minWidth: gridCell.minWidth, textAlign: 'center', fontSize: 11, fontWeight: '700', color: c.ink,
+            }}>{columnNames[side]}</Text>)}
+          </View>
+          {notes.map(note => <View key={note} style={{ ...gridRow, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.line, paddingBottom: 6 }}>
+            <T small style={{ flex: 1, paddingRight: 3 }}>{playerNoteLabels[note]}</T>
+            {([0, 1] as const).map(side => {
+              const checked = observations.playerNotes?.[side].includes(note) ?? false;
+              return <Toggle key={side} label={checked ? '✓' : '+'} style={gridCell} disabled={busy}
+                accessibilityLabel={`${names[side]} · ${playerNoteLabels[note]}`}
+                checked={checked} onChange={value => setPlayerNote(side, note, value)}
+              />;
+            })}
+          </View>)}
         </View>)}
       </>}
     </Card>

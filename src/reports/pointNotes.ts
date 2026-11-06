@@ -1,4 +1,4 @@
-import { playerNoteLabels, playerNotes, questionableCallSources, rallyLengthLabels, rallyLengthOf } from '../domain/pointNotes.ts';
+import { playerNoteGroups, playerNoteLabels, playerNotes, questionableCallSources, rallyLengthLabels, rallyLengthOf } from '../domain/pointNotes.ts';
 import type { CallSource, PlayerNote } from '../domain/pointNotes.ts';
 import type { PointObservations, RecordedPoint } from '../domain/points.ts';
 
@@ -51,9 +51,10 @@ export function pointNoteSummary(points: readonly RecordedPoint[], names: readon
     if (calls.unknown) lines.push(`Not known · ${calls.unknown}`);
     sections.push({ title: 'Questionable calls', lines });
   }
-  if (playerNotes.some(note => mindset[0][note] || mindset[1][note])) {
-    const lines = playerNotes.map(note => `${playerNoteLabels[note]} · ${names[0]} ${mindset[0][note]} · ${names[1]} ${mindset[1][note]}`);
-    sections.push({ title: 'Mindset, effort and resilience', lines });
+  for (const { title, notes } of playerNoteGroups) {
+    if (!notes.some(note => mindset[0][note] || mindset[1][note])) continue;
+    const lines = notes.map(note => `${playerNoteLabels[note]} · ${names[0]} ${mindset[0][note]} · ${names[1]} ${mindset[1][note]}`);
+    sections.push({ title: `${title} player observations`, lines });
   }
   return sections;
 }
