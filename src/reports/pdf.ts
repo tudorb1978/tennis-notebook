@@ -28,8 +28,8 @@ interface ReportWriter {
   group: (blocks: readonly TextBlock[]) => void;
   summary: (lead: string | readonly ResultPart[], details: readonly string[]) => void;
   playerTable: (name: string, stats: PlayerStats) => void;
-  statsTable: (title: string, names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats], includeStrokeTotals: boolean) => void;
-  strokeTable: (names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats]) => void;
+  statsTable: (title: string, names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats]) => void;
+  strokeTable: (names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats], title?: string) => void;
   pressurePoints: (names: readonly string[], stats: readonly PlayerStats[]) => void;
   matchNotes: (notes: string) => void;
   notesSummary: (summary: ReturnType<typeof pointNoteSummary>) => void;
@@ -289,7 +289,7 @@ async function createReportPDF(title: string, kind: string, assets: ReportAssets
     body.forEach(row => drawTableRow(row, players));
     y -= 13;
   }
-  function statsTable(title: string, names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats], includeStrokeTotals: boolean) {
+  function statsTable(title: string, names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats]) {
     const rows: (string | number)[][] = [
       ['Points won', ...stats.map(player => player.pointsWon)],
       ['Aces', ...stats.map(player => player.aces)],
@@ -298,13 +298,9 @@ async function createReportPDF(title: string, kind: string, assets: ReportAssets
       ['Second serves in', ...stats.map(player => observedRate(player.secondServesIn, player.secondServesObserved))],
       ['Returns in', ...stats.map(player => observedRate(player.returnsIn, player.returnsObserved))],
     ];
-    if (includeStrokeTotals) {
-      const totals = stats.map(strokeTotals);
-      ['Winners', 'Unforced errors', 'Forced errors'].forEach((label, index) => rows.push([label, ...totals.map(counts => counts[index] ?? 0)]));
-    }
     comparisonTable(title, 'Metric', names, rows);
   }
-  function strokeTable(names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats]) {
+  function strokeTable(names: readonly [string, string], stats: readonly [PlayerStats, PlayerStats], title = 'Shot breakdown') {
     const rows = strokes.filter(stroke => stats.some(player =>
       Object.values(player.byStroke[stroke]).some(Boolean))).map(stroke => [
       strokeNames[stroke], ...stats.flatMap(player => {
@@ -313,7 +309,7 @@ async function createReportPDF(title: string, kind: string, assets: ReportAssets
       }),
     ]);
     rows.push(['Total', ...stats.flatMap(strokeTotals)]);
-    groupedTable('Shot breakdown', 'Stroke', names, ['Winners', 'Unforced\nerrors', 'Forced\nerrors'], rows, { total: true });
+    groupedTable(title, 'Stroke', names, ['Winners', 'Unforced\nerrors', 'Forced\nerrors'], rows, { total: true });
   }
   function pressurePoints(names: readonly string[], stats: readonly PlayerStats[]) {
     const data = pressurePointGroups(stats);
@@ -459,7 +455,7 @@ export function createMatchPDF(record: MatchRecord, assets: ReportAssets, varian
     summary(resultParts(score), [`${status} · ${record.format.name}`, ...(times.length ? [times.join(' · ')] : [])]);
     if (hasScoreCorrections) group([['The score includes manual corrections. Statistics use recorded points only.', 'caption', 10]]);
     if (variant !== 'point-by-point') {
-      statsTable('Match stats', names, stats.players, false);
+      statsTable('Match stats', names, stats.players);
       if (stats.coverage.endings > 0) strokeTable(names, stats.players);
       if (stats.coverage.points) group([[
         `Endings recorded: ${stats.coverage.endings}/${stats.coverage.points} points. Strokes recorded: ${stats.coverage.strokes}/${stats.coverage.endings} endings. Aces count as serve winners; double faults as unforced serve errors.`,
@@ -489,7 +485,10 @@ export function createMatchPDF(record: MatchRecord, assets: ReportAssets, varian
       ];
       if (stage.points.length) {
         pointTable(stage, intro);
-        statsTable(`${stage.title} stats`, names, stage.stats.players, true);
+        statsTable(`${stage.title} stats`, names, stage.stats.players);
+        if (stage.stats.coverage.endings > 0) {
+          strokeTable(names, stage.stats.players, `${stage.title} shot breakdown`);
+        }
       } else {
         group([...intro, ['No points were recorded for this stage.', 'body', 14]]);
       }
