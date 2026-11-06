@@ -522,9 +522,10 @@ function Main() {
     {screen === 'match' && tab === 'record' && projection?.score.status === 'in-progress' && <AwakeWhileRecording />}
     <View style={layout.header}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Image source={require('./assets/tennis-notebook.png')} style={{ width: 34, height: 34, borderRadius: 8 }} accessible={false} />
+        <Image source={require('./assets/tennis-notebook-mark.png')} resizeMode="contain" style={{ width: 36, height: 36 }} accessible={false} />
         {screen === 'home' || screen === 'loading'
-          ? <T bold>Tennis Notebook</T>
+          ? <Image source={require('./assets/tennis-notebook-wordmark.png')} accessible accessibilityLabel="Tennis Notebook"
+            resizeMode="contain" style={{ width: 114, height: 36, tintColor: c.ink }} />
           : <Button quiet compact={showRecordingNotes} icon="chevron-left" testID="back-to-matches" disabled={busy} onPress={() => void home()}>Matches</Button>}
       </View>
       {busy ? <View accessibilityLiveRegion="polite"><T small muted>Saving…</T></View>
