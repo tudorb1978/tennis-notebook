@@ -34,7 +34,7 @@ import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
 type Screen = 'loading' | 'home' | 'setup' | 'match' | 'player-report';
 type Tab = 'record' | 'history' | 'report';
 type PointPanel = 'edit-point' | 'point-notes';
-type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
+type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'settings' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
 function AwakeWhileRecording() { useKeepAwake('tennis-recording'); return null; }
 function Main() {
   const c = useTheme(); const layout = useLayout();
@@ -181,6 +181,7 @@ function Main() {
   const exportBackup = () => external(async () => {
     const data = await repository.current!.backup();
     await shareText(`tennis-backup-${new Date().toISOString().slice(0, 10)}.json`, data, 'application/json');
+    setPanel(null);
     setNotice('Backup prepared. Keep a copy outside this app.');
   });
   const restore = () => external(async () => { const text = await pickBackup(); if (text) setPanel({ kind: 'import', text, preview: await repository.current!.previewImport(text) }); });
@@ -467,8 +468,6 @@ function Main() {
       onAddToEvent={() => { setError(''); setPanel({ kind: 'pick-event-for-match' }); }}
       onPerformance={showPlayerReport}
       onOpenMatch={id => void openMatch(id)}
-      onBackup={() => void exportBackup()}
-      onRestore={() => void restore()}
     />;
   }
   const errorBlock = error ? <Stack><Notice error>{error}</Notice><Row>{retry.current && <Button disabled={busy} onPress={() => void retry.current?.()}>Retry saving</Button>}<Button disabled={busy} onPress={() => void external(async () => {
@@ -497,6 +496,7 @@ function Main() {
           : <Button quiet compact={showRecordingNotes} testID="back-to-matches" disabled={busy} onPress={() => void home()}>‹ Matches</Button>}
       </View>
       {busy ? <View accessibilityLiveRegion="polite"><T small muted>Saving…</T></View>
+        : screen === 'home' ? <Button quiet compact disabled={repository.current === null} onPress={() => { setError(''); setPanel({ kind: 'settings' }); }}>Settings</Button>
         : screen === 'match' && record && <Row style={{ flex: 1, minWidth: 0, justifyContent: 'flex-end', gap: 4 }}>
           {showRecordingNotes && <Button quiet compact onPress={openMatchNotes}>Match notes</Button>}
           <Button quiet compact={showRecordingNotes} onPress={() => { setError(''); setPanel({ kind: 'match-details' }); }}>Match details</Button>
@@ -533,8 +533,15 @@ function Main() {
       {guideOpen && <ScrollView contentContainerStyle={layout.content}>
         <OutcomeGuide onClose={() => setGuideOpen(false)} />
       </ScrollView>}
-      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end' }}><Button quiet disabled={busy} onPress={() => { setPanel(null); setError(''); }}>Cancel</Button></Row>}
+      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end' }}><Button quiet disabled={busy} onPress={() => { setPanel(null); setError(''); }}>{panel?.kind === 'settings' ? 'Done' : 'Cancel'}</Button></Row>}
       <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? 'closed'} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>{errorBlock}
+      {panel?.kind === 'settings' && <Stack>
+        <Heading>Settings</Heading>
+        <T bold>Backup and restore</T>
+        <T small muted>Save a copy of your records before moving phones or uninstalling.</T>
+        <Button disabled={busy} onPress={() => void exportBackup()}>Back up all records</Button>
+        <Button disabled={busy} onPress={() => void restore()}>Restore backup</Button>
+      </Stack>}
       {(panel?.kind === 'pick-event-for-match' || panel?.kind === 'pick-event-for-report') && <Stack>
         <Heading>{panel.kind === 'pick-event-for-match' ? 'Add match to event' : 'Choose report event'}</Heading>
         {panel.kind === 'pick-event-for-report' && <Button selected={reportEventKey === null} onPress={() => { setReportEventKey(null); setPanel(null); }}>All events</Button>}

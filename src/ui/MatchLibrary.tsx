@@ -16,7 +16,7 @@ const statusLabels: Record<MatchScore['status'], string> = {
   abandoned: 'Abandoned',
 };
 
-export function MatchLibrary({ groups, players, filter, busy, available, onFilter, onNewMatch, onAddToEvent, onPerformance, onOpenMatch, onBackup, onRestore }: {
+export function MatchLibrary({ groups, players, filter, busy, available, onFilter, onNewMatch, onAddToEvent, onPerformance, onOpenMatch }: {
   groups: readonly MatchGroup[];
   players: readonly PlayerProfile[];
   filter: string;
@@ -27,8 +27,6 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
   onAddToEvent: () => void;
   onPerformance: (group: MatchGroup | null) => void;
   onOpenMatch: (id: string) => void;
-  onBackup: () => void;
-  onRestore: () => void;
 }) {
   const c = useTheme();
   const visibleGroups = groups.map(group => ({
@@ -88,13 +86,5 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
         </Button>;
       })}
     </View>)}
-    <Card style={{ gap: 8 }}>
-      <T bold>Backup and restore</T>
-      <T small muted>Save a copy of your records before moving phones or uninstalling.</T>
-      <Row>
-        <Button disabled={busy || !available} onPress={onBackup}>Back up all records</Button>
-        <Button disabled={busy || !available} onPress={onRestore}>Restore backup</Button>
-      </Row>
-    </Card>
   </Stack>;
 }

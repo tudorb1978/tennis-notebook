@@ -317,6 +317,8 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await page.getByTestId('back-to-matches').click();
     console.log('PASS Event reuse copies context, and event and date filters scope the player report and PDF');
 
+    await expect(button('Back up all records')).toHaveCount(0);await expect(button('Restore backup')).toHaveCount(0);
+    await button('Settings').click();await expect(page.getByRole('heading',{name:'Settings',exact:true})).toBeVisible();
     const download=page.waitForEvent('download');await button('Back up all records').click();const file=await download;const backupPath=path.join(output,'tennis-app-backup.json');await file.saveAs(backupPath);const backup=JSON.parse(fs.readFileSync(backupPath,'utf8'));assert.equal(backup.matches.length,3);assert.equal(backup.players.length,1);
     const [jamie,taylor,sam]=['Jamie','Taylor','Sam'].map(name=>backup.matches.find(match=>match.players[1].name===name));
     assert.equal(jamie.eventId,taylor.eventId);assert.notEqual(sam.eventId,jamie.eventId);
@@ -325,12 +327,13 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     console.log('PASS Separate events with the same name survive backup with their own identities');
 
     await context.close();context=await browser.newContext({viewport:{width:412,height:915},acceptDownloads:true});page=await context.newPage();wire();await page.goto(base,{waitUntil:'domcontentloaded'});await expect(page.getByText('Your tennis notebook',{exact:true})).toBeVisible();
-    const chooser=page.waitForEvent('filechooser');await button('Restore backup').click();await (await chooser).setFiles(backupPath);await expect(page.getByText('1 new players and 3 new matches.',{exact:true})).toBeVisible();await button('Import new records').click();await expect(page.getByText('Restored 3 matches. Existing records were kept.',{exact:true})).toBeVisible();
+    await button('Settings').click();const chooser=page.waitForEvent('filechooser');await button('Restore backup').click();await (await chooser).setFiles(backupPath);await expect(page.getByText('1 new players and 3 new matches.',{exact:true})).toBeVisible();await button('Import new records').click();await expect(page.getByText('Restored 3 matches. Existing records were kept.',{exact:true})).toBeVisible();
     await page.getByRole('button',{name:/^Alex vs Jamie, Completed,/}).click();
     await expect(page.getByRole('heading',{name:'Match report',exact:true})).toBeVisible();await points('11','9');
     await expect(page.getByText(matchNotes,{exact:true})).toBeVisible();
     await page.setViewportSize({width:320,height:915});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-    await page.getByTestId('back-to-matches').click();const chooserAgain=page.waitForEvent('filechooser');await button('Restore backup').click();await (await chooserAgain).setFiles(backupPath);await expect(page.getByText('0 new players and 0 new matches.',{exact:true})).toBeVisible();await expect(button('Import new records')).toBeDisabled();await button('Cancel').click();
+    await page.getByTestId('back-to-matches').click();await button('Settings').click();
+    const chooserAgain=page.waitForEvent('filechooser');await button('Restore backup').click();await (await chooserAgain).setFiles(backupPath);await expect(page.getByText('0 new players and 0 new matches.',{exact:true})).toBeVisible();await expect(button('Import new records')).toBeDisabled();await button('Cancel').click();
     const taylorMatch=page.getByText('Alex vs Taylor',{exact:true});
     await page.getByRole('button',{name:/^Alex vs Taylor, In progress,/}).click();
     await expect(button('Match notes')).toBeInViewport();

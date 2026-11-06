@@ -26,9 +26,9 @@ The most useful feedback is whether you can record a full match while keeping yo
 
 ## Keep a backup
 
-Use Back up all records on the home screen to make a JSON backup, then save or share it to a location outside the app. This contains restorable profiles, match history, observations, and unfinished entry drafts. It is different from a PDF report or CSV export.
+Open Settings in the home screen header and choose Back up all records to make a JSON backup, then save or share it to a location outside the app. The backup contains restorable profiles, match history, observations, and unfinished entry drafts.
 
-Restore backup previews new records, identical matches, and conflicts. It imports new records and preserves existing conflicting records. Copy a backup before uninstalling the app or moving phones.
+Restore backup in Settings previews new records, identical matches, and conflicts. It imports new records and preserves existing conflicting records. Copy a backup before uninstalling the app or moving phones.
 
 PDF report and Export points CSV are available from a match's Report tab. Sharing opens the device's chooser; the app does not publish reports or send them automatically.
 
