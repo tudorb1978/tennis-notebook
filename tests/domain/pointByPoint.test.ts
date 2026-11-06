@@ -39,8 +39,7 @@ test('Point-by-point reports preserve point order, stage scores and the recorded
     pressure: ['Set point for Stefan'],
     labels: [
       { text: 'Very long rally (est. over 25 shots)', tone: 'rally' },
-      { text: 'Call was disputed · Call by Official', tone: 'neutral' },
-      { text: 'Call was incorrect · Call by Official', tone: 'neutral' },
+      { text: 'Call was disputed and incorrect · Call by Official', tone: 'neutral' },
       { text: 'Stefan · Great effort', tone: 'positive' },
       { text: 'Harry · Anger or frustration (racket smashing or tears)', tone: 'negative' },
     ],

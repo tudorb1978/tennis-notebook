@@ -19,10 +19,14 @@ export function pointNoteDetails(observations: PointObservations | undefined, na
   for (const source of questionableCallSources(observations)) {
     labels.push({ text: `Questionable call by ${callSourceLabel(source, names)}`, tone: 'neutral' });
   }
-  const source = observations.callBy;
-  const callMaker = source === null || source === 'unknown' ? '' : ` · Call by ${callSourceLabel(source, names)}`;
-  if (observations.disputed) labels.push({ text: `Call was disputed${callMaker}`, tone: 'neutral' });
-  if (observations.callIncorrect) labels.push({ text: `Call was incorrect${callMaker}`, tone: 'neutral' });
+  const callOutcomes: string[] = [];
+  if (observations.disputed) callOutcomes.push('disputed');
+  if (observations.callIncorrect) callOutcomes.push('incorrect');
+  if (callOutcomes.length) {
+    const source = observations.callBy;
+    const callMaker = source === null || source === 'unknown' ? '' : ` · Call by ${callSourceLabel(source, names)}`;
+    labels.push({ text: `Call was ${callOutcomes.join(' and ')}${callMaker}`, tone: 'neutral' });
+  }
   for (const side of [0, 1] as const) {
     for (const note of observations.playerNotes?.[side] ?? []) {
       const group = playerNoteGroups.find(({ notes }) => notes.includes(note));

@@ -341,8 +341,7 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     for(const title of ['Disputed calls','Incorrect calls']){
       await expect(page.getByText(title,{exact:true}).locator('..').getByText('Official · 1',{exact:true})).toBeVisible();
     }
-    await expect(page.getByText('Call was disputed · Call by Official',{exact:true})).toBeVisible();
-    await expect(page.getByText('Call was incorrect · Call by Official',{exact:true})).toBeVisible();
+    await expect(page.getByText('Call was disputed and incorrect · Call by Official',{exact:true})).toBeVisible();
     await expect(page.getByText(matchNotes,{exact:true})).toBeVisible();
     const tieBreakNote=page.getByText('Stayed composed at nine all.',{exact:true}).locator('..');
     await expect(tieBreakNote.getByText('Before point · Match tie-break 9–9',{exact:true})).toBeVisible();

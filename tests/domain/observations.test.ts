@@ -38,7 +38,7 @@ test('Unified call notes distinguish disputed and incorrect calls and keep attri
     observations: { ...emptyObservations(), callIncorrect: true } }).point;
   const questionable = recordPoint(score, { type: 'winner-only', winner: 0,
     observations: { ...emptyObservations(), callIncorrect: false, callBy: 0 } }).point;
-  assert.deepEqual(pointNoteLabels(both.observations, names), ['Call was disputed · Call by Official', 'Call was incorrect · Call by Official']);
+  assert.deepEqual(pointNoteLabels(both.observations, names), ['Call was disputed and incorrect · Call by Official']);
   assert.equal(hasPointNotes(incorrect.observations), true);
   assert.deepEqual(pointNoteSummary([both, incorrect, questionable], names), [
     { title: 'Questionable calls', lines: ['Alex · 1', 'Jamie · 0'] },
