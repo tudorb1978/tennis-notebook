@@ -11,7 +11,7 @@ import { emptyObservations, serveWasIn, strokes } from './src/domain/points.ts';
 import type { PointInput, PointObservations, Stroke } from './src/domain/points.ts';
 import { presets } from './src/domain/presets.ts';
 import { other } from './src/domain/scoring.ts';
-import type { LifecycleAction, ScoreCorrection, Side } from './src/domain/scoring.ts';
+import type { LifecycleAction, MatchScore, ScoreCorrection, Side } from './src/domain/scoring.ts';
 import { openRepository } from './src/storage/database.ts';
 import type { ImportPreview, MatchRepository } from './src/storage/repository.ts';
 import { groupMatches, matchEventKey } from './src/storage/matchGroups.ts';
@@ -49,6 +49,9 @@ const matchPDFOptions: readonly { variant: MatchPDFVariant; title: string; descr
 ];
 type PointPanel = 'edit-point' | 'point-notes' | 'delete-point';
 type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'export-match-pdf' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'open-unstarted-match' | 'start-match'; match: UnstartedMatchRecord } | { kind: 'settings' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
+function canRecordMatch(status: MatchScore['status'] | undefined): boolean {
+  return status === 'in-progress' || status === 'suspended';
+}
 function AwakeWhileRecording() { useKeepAwake('tennis-recording'); return null; }
 function Main() {
   const c = useTheme(); const layout = useLayout();
@@ -62,7 +65,7 @@ function Main() {
   const [players, setPlayers] = useState<PlayerProfile[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [record, setRecord] = useState<MatchRecord | null>(null);
-  const [tab, setTab] = useState<Tab>('record');
+  const [selectedTab, setTab] = useState<Tab>('record');
   const [panel, setPanel] = useState<Panel>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,7 +84,7 @@ function Main() {
       const [savedPlayers, savedMatches, resumeId] = await Promise.all([repo.players(), repo.matches(), repo.resumeId()]);
       setPlayers(savedPlayers); setMatches(savedMatches);
       const active = savedMatches.find(m => m.id === resumeId);
-      if (active && active.firstServer !== null && ['in-progress', 'suspended'].includes(replayMatch(active.format, active.firstServer, active.events).score.status)) {
+      if (active && active.firstServer !== null && canRecordMatch(replayMatch(active.format, active.firstServer, active.events).score.status)) {
         current.current = active; setRecord(active); setTab('record'); setScreen('match');
       } else setScreen('home');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open saved records.'); setScreen('home'); }
@@ -114,6 +117,9 @@ function Main() {
   }, done);
   const undo = () => mutate(m => {
     if (m.firstServer === null) throw new Error('Start the match before recording play.');
+    if (!canRecordMatch(replayMatch(m.format, m.firstServer, m.events).score.status)) {
+      throw new Error('Finished matches cannot be undone.');
+    }
     return { ...m, events: undoLast(m.format, m.firstServer, m.events, randomUUID()), draft: emptyDraft() };
   });
   const addLifecycle = (action: LifecycleAction, done?: () => void, clearDraft = false) =>
@@ -149,7 +155,7 @@ function Main() {
       }
       await repository.current!.setResumeId(latest.id);
       setCurrent(latest); setPanel(null); setScreen('match'); setNotice('');
-      setTab(choice !== 'report' && (status === 'in-progress' || status === 'suspended') ? 'record' : 'report');
+      setTab(choice !== 'report' && canRecordMatch(status) ? 'record' : 'report');
       resume = status === 'suspended' && choice === 'resume';
     });
     if (resume) await addLifecycle({ type: 'resume' });
@@ -170,6 +176,8 @@ function Main() {
   });
   const projection = useMemo(() => record && record.firstServer !== null
     ? replayMatch(record.format, record.firstServer, record.events, record.timingStartedAt) : null, [record]);
+  const canRecord = canRecordMatch(projection?.score.status);
+  const tab = selectedTab === 'record' && !canRecord ? 'report' : selectedTab;
   const scheduledServer = projection?.score.current?.server;
   const pointServer = record?.draft.actualServer ?? scheduledServer;
   const togglePointServer = () => {
@@ -222,14 +230,17 @@ function Main() {
   });
   const restore = () => external(async () => { const text = await pickBackup(); if (text) setPanel({ kind: 'import', text, preview: await repository.current!.previewImport(text) }); });
 
-  const openPointPanel = (kind: PointPanel, id: string) => { setError(''); setPanel({ kind, id }); };
+  const openPointPanel = (kind: PointPanel, id: string) => {
+    if (!canRecord && kind !== 'point-notes') return;
+    setError(''); setPanel({ kind, id });
+  };
   const openMatchNotes = () => { setError(''); setPanel({ kind: 'match-notes' }); };
   const pointActions = (id: string, observations?: PointObservations) => <Row style={{ gap: 6 }}>
-    <Button quiet disabled={busy} onPress={() => openPointPanel('edit-point', id)}>Edit point</Button>
+    {canRecord && <Button quiet disabled={busy} onPress={() => openPointPanel('edit-point', id)}>Edit point</Button>}
     <Button quiet disabled={busy} onPress={() => openPointPanel('point-notes', id)}>{hasPointNotes(observations) ? 'Edit notes' : 'Add notes'}</Button>
   </Row>;
   const saveSelectedPoint = (input: PointInput) => {
-    if (!selectedEntry) return;
+    if (!selectedEntry || (!canRecord && panel?.kind !== 'point-notes')) return;
     void addEvent({ id: randomUUID(), type: 'edit-point', targetId: selectedEntry.id, input }, () => {
       setPanel(null);
       setNotice(panel?.kind === 'point-notes' ? 'Point notes saved.' : 'Point updated.');
@@ -284,10 +295,9 @@ function Main() {
   }
 
   function live() {
-    if (!record || !projection) return null;
-    const score = projection.score; const ongoing = score.status === 'in-progress'; const paused = score.status === 'suspended';
+    if (!record || !projection || !canRecord) return null;
+    const score = projection.score; const paused = score.status === 'suspended';
     const obs = record.draft.observations; const pending = record.draft.pending;
-    if (!ongoing && !paused) return <Stack><Notice>{score.status === 'abandoned' ? 'Match ended without a winner.' : `${record.players[score.winner!].name} wins${score.status === 'retired' ? ' by retirement' : ''}.`}</Notice><Button primary onPress={() => setTab('report')}>View match report</Button>{previousPoint()}<Button disabled={busy} onPress={() => void undo()}>Undo last action</Button></Stack>;
     if (paused) return <Stack><Card><Heading>Match paused</Heading><T muted>{record.timingStartedAt ? 'The match clock is paused. Your score and observations are saved.' : 'Your score and observations are saved.'}</T><Button primary disabled={busy} onPress={() => void addLifecycle({ type: 'resume' })}>Resume recording</Button><Button quiet disabled={busy} onPress={() => setPanel({ kind: 'finish' })}>Finish early</Button></Card>{previousPoint()}</Stack>;
     if (pending && !('winner' in pending)) {
       const canPickServe = pending.actor === pointServer && (pending.ending === 'winner' || !serveWasIn(obs));
@@ -522,7 +532,7 @@ function Main() {
 
   const pinScore = screen === 'match' && tab === 'record' && projection?.score.status === 'in-progress'
     && height >= 720 && fontScale <= 1.3;
-  const showRecordingNotes = tab === 'record' && (projection?.score.status === 'in-progress' || projection?.score.status === 'suspended');
+  const showRecordingNotes = tab === 'record' && canRecord;
   const scoreboard = record && projection && <Scoreboard
     record={record} score={projection.score} timing={projection.timing} showPointStakes={tab === 'record'} showSetTieBreaks={tab === 'report'} busy={busy}
     toggleServer={tab === 'record' ? togglePointServer : undefined}
@@ -567,10 +577,10 @@ function Main() {
       </ScrollView>
     </KeyboardAvoidingView>
     {screen === 'match' && <View style={layout.footer}><View style={layout.footerContent}>
-      <Button testID="undo" label="Undo last action" quiet compact style={{ paddingHorizontal: 6 }} disabled={busy || !projection?.lastActionId} onPress={() => void undo()}>
+      {canRecord && <Button testID="undo" label="Undo last action" quiet compact style={{ paddingHorizontal: 6 }} disabled={busy || !projection?.lastActionId} onPress={() => void undo()}>
         <View style={{ alignItems: 'center', gap: 3 }}><Icon name="undo" color={c.sub} size={17} /><T small muted style={{ fontSize: 11, lineHeight: 15 }}>Undo</T></View>
-      </Button>
-      {matchTabs.map(({ value, label, icon }) => {
+      </Button>}
+      {matchTabs.filter(({ value }) => canRecord || value !== 'record').map(({ value, label, icon }) => {
         const selected = tab === value;
         const color = selected ? c.accent : c.sub;
         return <Button key={value} testID={`tab-${value}`} label={label} toggle compact quiet selected={selected} disabled={busy}
