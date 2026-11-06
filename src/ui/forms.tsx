@@ -98,12 +98,36 @@ const setupFormats: { id: PresetId; title: string; detail: string }[] = [
   { id: 'normal-match-tiebreak', title: 'Normal sets + match tie-break', detail: 'Sets to 6 games · deciding tie-break to 10' },
 ];
 
-function SetupSectionTitle({ icon, children }: { icon: 'players' | 'court'; children: string }) {
+const modeDetails: Record<RecordingMode, string> = {
+  score: 'Record who won each point.',
+  endings: 'Record the winning shot or error on each point.',
+  detailed: 'Record serves, returns and how each point ended.',
+};
+
+function SetupSectionTitle({ icon, children }: { icon: 'players' | 'court' | 'sliders'; children: string }) {
   const c = useTheme();
   return <Row>
     <Icon name={icon} color={c.accent} size={18} />
     <T bold>{children}</T>
   </Row>;
+}
+
+function SetupOption({ testID, title, detail, selected, disabled, onPress }: {
+  testID: string; title: string; detail: string; selected: boolean; disabled: boolean; onPress: () => void;
+}) {
+  const c = useTheme();
+  return <Button testID={testID} label={title} selected={selected} toggle disabled={disabled} onPress={onPress}
+    style={{ backgroundColor: selected ? c.soft : c.bg, borderColor: selected ? c.accent : c.line, paddingVertical: 10 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: selected ? c.accent : c.sub, alignItems: 'center', justifyContent: 'center' }}>
+        {selected && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.accent }} />}
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <T bold style={{ fontSize: 14, lineHeight: 19 }}>{title}</T>
+        <T small muted>{detail}</T>
+      </View>
+    </View>
+  </Button>;
 }
 
 export function SetupForm({ players, event, preferredPlayerId, busy, onSave }: {
@@ -140,30 +164,19 @@ export function SetupForm({ players, event, preferredPlayerId, busy, onSave }: {
     <Card>
       <SetupSectionTitle icon="court">Match format</SetupSectionTitle>
       <View style={{ gap: 7 }}>
-        {setupFormats.map(format => {
-          const selected = values.preset === format.id;
-          return <Button key={format.id} testID={format.id} label={format.title} selected={selected} toggle disabled={busy}
-            onPress={() => update('preset', format.id)}
-            style={{ backgroundColor: selected ? c.soft : c.bg, borderColor: selected ? c.accent : c.line, paddingVertical: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: selected ? c.accent : c.sub, alignItems: 'center', justifyContent: 'center' }}>
-                {selected && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.accent }} />}
-              </View>
-              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                <T bold style={{ fontSize: 14, lineHeight: 19 }}>{format.title}</T>
-                <T small muted>{format.detail}</T>
-              </View>
-            </View>
-          </Button>;
-        })}
+        {setupFormats.map(({ id, title, detail }) => <SetupOption key={id} testID={id} title={title} detail={detail}
+          selected={values.preset === id} disabled={busy} onPress={() => update('preset', id)} />)}
       </View>
       <View style={{ backgroundColor: c.bg, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8 }}>
         <T small muted>{values.preset.startsWith('fast4') ? 'Deciding point at deuce. Set tie-break at 3–3 to 7, two clear.' : 'Advantage games. Sets by two games. Set tie-break at 6–6 to 7, two clear.'}{values.preset !== 'fast4-single' ? ' At one set each, a match tie-break to 10, two clear.' : ''}</T>
       </View>
     </Card>
     <Card>
-      <Choices compact labelIcon="sliders" label="Recording depth" value={values.mode} options={modeOptions} onChange={v => update('mode', v)} disabled={busy} />
-      <T small muted>{values.mode === 'score' ? 'Record who won each point.' : values.mode === 'endings' ? 'Record the winning shot or error on each point.' : 'Record serves, returns and how each point ended.'}</T>
+      <SetupSectionTitle icon="sliders">Recording depth</SetupSectionTitle>
+      <View style={{ gap: 7 }}>
+        {modeOptions.map(({ value, label }) => <SetupOption key={value} testID={`recording-depth-${value}`} title={label} detail={modeDetails[value]}
+          selected={values.mode === value} disabled={busy} onPress={() => update('mode', value)} />)}
+      </View>
     </Card>
     <Card style={{ gap: 8 }}>
       {!event && <Field label="Tournament or group" value={values.group} onChange={v => update('group', v)} placeholder="Optional" />}
