@@ -6,20 +6,20 @@ The first Android build is for a practice-match trial of the courtside recording
 
 Copy `output/android/tennis-tracker-preview.apk` to your Android phone and open it. Android may ask you to allow installation from the app you used to open the file. Once installed, open Tennis Notebook.
 
-Tap Start recording your first match in an empty library or New match & event once you have saved matches. Enter your player's name and the opponent, select a format, and choose the first server. To reuse the venue and court details from a previous match, tap Add match to event and pick the event. The three match formats and their scoring rules are confirmed in [Initial match formats](match-formats.md).
+Tap Start recording your first match in an empty library or New match & event once you have saved matches. Enter your player's name and the opponent, select a format and recording depth, then save the match. Open it and choose Start match when play is about to begin; only then select the first server. To reuse the venue and court details from a previous match, tap Add match to event and pick the event. The three match formats and their scoring rules are confirmed in [Initial match formats](match-formats.md).
 
 Use Match details in the match header to fill in or update the event, date, round, venue, surface, indoor or outdoor setting, and conditions during or after the match.
 
-In Point endings mode, tap the winner or error under the player who played the final shot, then select the stroke. The point is saved after stroke selection. Shot not seen is a deliberate exception when you missed the stroke. Aces and double faults use Serve automatically.
+In Score & last shot mode, choose the point winner, then tap Forehand, Backhand or Volley under the relevant winner or error. This saves the point immediately. The racket button opens Overhead, Other and I'm not sure for an unknown stroke. Serve is also available for the server's winner or unforced error if no serve or return result has been entered; it records an ace or double fault respectively. Close returns to the shot choices without saving. I'm not sure how it ended saves only the selected point winner.
 
 ## What to try
 
 1. Record several forehand and backhand winners and errors. Check both players' breakdowns in Report.
-2. Close and reopen the app during a game. Try the same while the stroke picker is open.
+2. Close and reopen the app during a game. Try the same while the racket menu is open.
 3. Under Previous point or in History, use Edit point to correct a stroke and Add notes for observations, questionable calls, and disputes. Undo reverses the latest saved change.
-4. Switch to Serves + endings. Record a first-serve fault, second serve in, and return observation before finishing the point.
+4. Switch to Score, serve & last shot. Record a first-serve fault, second serve in, and return observation before finishing the point.
 5. Try Correct score next to Switch server on the scoreboard. Supply the next server. Missing points affect the official score without inventing stroke statistics.
-6. Use Pause and Resume recording for a break in play. The clock starts at Start recording, and the finished match report shows playing time with pauses deducted. Use Finish early for retirement or abandonment.
+6. Use Pause and Resume recording for a break in play. The clock starts at Start match, and the finished match report shows playing time with pauses deducted. Use Finish early for retirement or abandonment.
 7. Return to Matches. Open Event performance beside an event or Player performance from the match list. Choose a player and date range, then export the filtered report as a PDF.
 
 The most useful feedback is whether you can record a full match while keeping your attention on play, and where input slows you down. Check sunlight readability, accidental taps, access to Undo, and whether the right stroke choices are available.

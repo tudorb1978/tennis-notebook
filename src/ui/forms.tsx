@@ -16,7 +16,7 @@ import { Icon } from './Icon.tsx';
 import { ServeObservations } from './ObservationForm.tsx';
 import { OutcomeHelpButton } from './OutcomeGuide.tsx';
 
-export const modeOptions: { value: RecordingMode; label: string }[] = [{ value: 'score', label: 'Score only' }, { value: 'endings', label: 'Point endings' }, { value: 'detailed', label: 'Serves + endings' }];
+export const modeOptions: { value: RecordingMode; label: string }[] = [{ value: 'score', label: 'Score' }, { value: 'endings', label: 'Score & last shot' }, { value: 'detailed', label: 'Score, serve & last shot' }];
 type SavedMatchDetails = Pick<MatchRecord, 'group' | 'date' | 'round' | 'venue' | 'surface' | 'courtSetting' | 'conditions'>;
 type MatchDetails = Required<SavedMatchDetails>;
 const surfaces = ['Clay', 'Artificial clay', 'Grass', 'Artificial grass (astro turf)', 'Acrylic', 'Tarmac', 'Carpet', 'Other'];

@@ -7,7 +7,6 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { appendEvent, replayMatch, undoLast } from './src/domain/history.ts';
 import type { MatchEvent } from './src/domain/history.ts';
 import { hasPointNotes } from './src/domain/pointNotes.ts';
-import { emptyObservations, serveWasIn, strokes } from './src/domain/points.ts';
 import type { PointInput, PointObservations, Stroke } from './src/domain/points.ts';
 import { presets } from './src/domain/presets.ts';
 import { other } from './src/domain/scoring.ts';
@@ -29,6 +28,7 @@ import type { SetupValues } from './src/ui/forms.tsx';
 import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
 import { OutcomeGuide, OutcomeHelpButton } from './src/ui/OutcomeGuide.tsx';
 import { Scoreboard } from './src/ui/Scoreboard.tsx';
+import { LastShotCard, MoreShotOptions } from './src/ui/LastShotCard.tsx';
 import { pointSavedSummary } from './src/ui/pointSaved.ts';
 import type { PointSavedSummary } from './src/ui/pointSaved.ts';
 import { ServeRecordingCard } from './src/ui/ServeRecordingCard.tsx';
@@ -177,6 +177,11 @@ function Main() {
     if (resume) await addLifecycle({ type: 'resume' });
   };
   const closePanel = () => {
+    if (strokeMenuOpen && endingDraft) {
+      const winner = endingDraft.ending === 'winner' ? endingDraft.actor : other(endingDraft.actor);
+      void selectPointDetail({ winner });
+      return;
+    }
     if (screen === 'home') setCurrent(null);
     setPanel(panel?.kind === 'rename-player' || panel?.kind === 'delete-player' ? { kind: 'settings' } : null);
     setError(''); retry.current = null;
@@ -185,7 +190,7 @@ function Main() {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
       if (saving.current) return true;
       if (guideOpen) { setGuideOpen(false); return true; }
-      if (panel) { closePanel(); return true; }
+      if (panel || strokeMenuOpen) { closePanel(); return true; }
       if (screen === 'match' || screen === 'setup' || screen === 'player-report') { void home(); return true; }
       return false;
     });
@@ -197,6 +202,13 @@ function Main() {
   const tab = selectedTab === 'record' && !canRecord ? 'report' : selectedTab;
   const scheduledServer = projection?.score.current?.server;
   const pointServer = record?.draft.actualServer ?? scheduledServer;
+  const endingDraft = record?.draft.pending && !('winner' in record.draft.pending) ? record.draft.pending : null;
+  const strokeMenuOpen = screen === 'match' && tab === 'record' && projection?.score.status === 'in-progress'
+    && endingDraft !== null && panel === null && !guideOpen;
+  const serveUnrecorded = record?.draft.observations.firstServe === 'unknown' && record.draft.observations.secondServe === 'unknown'
+    && record.draft.observations.returnResult === 'unknown' && record.draft.observations.returnStroke === 'unknown';
+  const allowServeStroke = endingDraft !== null && endingDraft.actor === pointServer
+    && endingDraft.ending !== 'forced-error' && serveUnrecorded;
   const togglePointServer = () => {
     if (scheduledServer === undefined) return;
     void mutate(match => ({
@@ -290,6 +302,11 @@ function Main() {
   const stroke = (value: Stroke) => {
     const pending = record?.draft.pending;
     if (!record || !pending || 'winner' in pending) return;
+    if (value === 'serve') {
+      if (!allowServeStroke) return;
+      return savePoint({ type: pending.ending === 'winner' ? 'ace' : 'double-fault',
+        actor: pending.actor, observations: record.draft.observations });
+    }
     return savePoint({ type: 'ending', actor: pending.actor, ending: pending.ending, stroke: value, observations: record.draft.observations });
   };
   const saveServiceEnding = (type: 'ace' | 'double-fault') => {
@@ -336,35 +353,10 @@ function Main() {
     if (!record || !projection || !canRecord) return null;
     const score = projection.score; const paused = score.status === 'suspended';
     const obs = record.draft.observations; const pending = record.draft.pending;
-    if (paused) return <Stack><Card><Heading>Match paused</Heading><T muted>{record.timingStartedAt ? 'The match clock is paused. Your score and observations are saved.' : 'Your score and observations are saved.'}</T><Button primary disabled={busy} onPress={() => void addLifecycle({ type: 'resume' })}>Resume recording</Button><Button quiet disabled={busy} onPress={() => setPanel({ kind: 'finish' })}>Finish early</Button></Card>{previousPoint()}</Stack>;
-    if (pending && !('winner' in pending)) {
-      const canPickServe = pending.actor === pointServer && (pending.ending === 'winner' || !serveWasIn(obs));
-      const available = strokes.filter(stroke => stroke !== 'unknown' && (stroke !== 'serve' || canPickServe));
-      const winner = pending.ending === 'winner' ? pending.actor : other(pending.actor);
-      return <Card style={{ gap: 8 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <View style={{ flex: 1, gap: 3 }}>
-            <Eyebrow>{endingNames[pending.ending]}</Eyebrow>
-            <PlayerBadge side={pending.actor}>{record.players[pending.actor].name}</PlayerBadge>
-          </View>
-          <Button quiet disabled={busy} onPress={() => void selectPointDetail({ winner })}>Back</Button>
-        </Row>
-        <Heading>Which stroke?</Heading>
-        {available.filter((_, index) => index % 2 === 0).map((first, index) => {
-          const second = available[index * 2 + 1];
-          return <View key={first} style={layout.two}>
-            {[first, second].map((value, column) => value
-              ? <Button key={value} testID={`stroke-${value}`} disabled={busy} style={layout.cell} onPress={() => void stroke(value)}>{strokeNames[value]}</Button>
-              : <View key={column} style={layout.cell} />)}
-          </View>;
-        })}
-        <Button quiet testID="stroke-unknown" disabled={busy} onPress={() => void stroke('unknown')}>Shot not seen</Button>
-      </Card>;
-    }
     const canRecordAce = obs.returnStroke === 'unknown' && obs.returnResult === 'unknown';
-    const aceButton = <Button style={layout.cell} disabled={busy} onPress={() => void saveServiceEnding('ace')}>Ace</Button>;
+    if (paused) return <Stack><Card><Heading>Match paused</Heading><T muted>{record.timingStartedAt ? 'The match clock is paused. Your score and observations are saved.' : 'Your score and observations are saved.'}</T><Button primary disabled={busy} onPress={() => void addLifecycle({ type: 'resume' })}>Resume recording</Button><Button quiet disabled={busy} onPress={() => setPanel({ kind: 'finish' })}>Finish early</Button></Card>{previousPoint()}</Stack>;
     if (pending) {
-      const { winner } = pending;
+      const winner = 'winner' in pending ? pending.winner : pending.ending === 'winner' ? pending.actor : other(pending.actor);
       return <Stack>
         <Card style={{ padding: 10 }}>
           <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
@@ -374,34 +366,12 @@ function Main() {
             <Button quiet compact disabled={busy} onPress={() => void selectPointDetail(null)}>Change winner</Button>
           </Row>
         </Card>
-        <Card style={{ padding: 10, gap: 8 }}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <T bold style={{ fontSize: 19, flexShrink: 1 }}>Last shot of the rally</T>
-            <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
-          </Row>
-          {([0, 1] as const).map(side => {
-            const name = record.players[side].name;
-            const won = side === winner;
-            const endings = won ? ['winner'] as const : ['unforced-error', 'forced-error'] as const;
-            const showServiceEndings = record.mode === 'endings' && pointServer === side;
-            return <React.Fragment key={side}>
-              <PlayerBadge side={side}>{`Played by ${name}`}</PlayerBadge>
-              <View style={layout.two}>
-                {endings.map(ending => <Button
-                  key={ending} testID={`ending-${side}-${ending}`} label={`${name} ${endingNames[ending]}`}
-                  style={[layout.cell, won && { backgroundColor: c.soft }]} disabled={busy}
-                  onPress={() => void selectPointDetail({ actor: side, ending })}
-                >{endingNames[ending]}</Button>)}
-                {showServiceEndings && won && canRecordAce && aceButton}
-              </View>
-              {showServiceEndings && !won && !serveWasIn(obs) &&
-                <Button disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
-            </React.Fragment>;
-          })}
-          <View style={{ marginTop: 12, borderTopWidth: 2, borderTopColor: '#8c8c8c', paddingTop: 12 }}>
-            <Button style={{ backgroundColor: c.bg }} disabled={busy} onPress={() => void savePoint({ type: 'winner-only', winner, observations: obs })}>Not sure how it ended</Button>
-          </View>
-        </Card>
+        <LastShotCard names={[record.players[0].name, record.players[1].name]} winner={winner} busy={busy}
+          onShot={(actor, ending, value) => void savePoint({ type: 'ending', actor, ending, stroke: value, observations: obs })}
+          onMore={(actor, ending) => void selectPointDetail({ actor, ending })}
+          onUnknown={() => void savePoint({ type: 'winner-only', winner, observations: obs })}
+          onHelp={() => setGuideOpen(true)}
+        />
       </Stack>;
     }
     const missedReturner = record.mode === 'detailed' && obs.returnResult === 'error' && pointServer !== undefined
@@ -451,7 +421,7 @@ function Main() {
       <Row style={{ ...recordingSectionDivider, justifyContent: 'space-between', gap: 0 }}>
         <Button quiet disabled={busy} onPress={() => void addLifecycle({ type: 'suspend' })}>Pause</Button>
         <Button quiet disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'finish' }); }}>Finish early</Button>
-        <Button quiet testID="recording-mode" disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'recording-mode' }); }}>
+        <Button quiet testID="recording-mode" style={{ maxWidth: '100%' }} disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'recording-mode' }); }}>
           {`Recording mode · ${modeOptions.find(option => option.value === record.mode)?.label}`}
         </Button>
       </Row>
@@ -581,19 +551,23 @@ function Main() {
       })}
     </View></View>}
 
-    <Modal visible={panel !== null || guideOpen} transparent animationType="none" onRequestClose={() => {
+    <Modal visible={panel !== null || guideOpen || strokeMenuOpen} transparent animationType="none" onRequestClose={() => {
       if (guideOpen) setGuideOpen(false);
       else if (!busy) closePanel();
     }}><SafeAreaView style={layout.modal}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={layout.sheet}>
       {guideOpen && <ScrollView contentContainerStyle={layout.content}>
         <OutcomeGuide onClose={() => setGuideOpen(false)} />
       </ScrollView>}
-      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end', borderBottomWidth: 1, borderColor: c.line, backgroundColor: c.card }}><Button quiet compact icon="close" disabled={busy} onPress={closePanel}>{panel?.kind === 'settings' || panel?.kind === 'pdf-ready' ? 'Done' : 'Cancel'}</Button></Row>}
+      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end', borderBottomWidth: 1, borderColor: c.line, backgroundColor: c.card }}><Button quiet compact icon="close" disabled={busy} onPress={closePanel}>{strokeMenuOpen ? 'Close' : panel?.kind === 'settings' || panel?.kind === 'pdf-ready' ? 'Done' : 'Cancel'}</Button></Row>}
       {panel?.kind === 'point-notes' && selectedEntry && record && !guideOpen ? <PointNotesEditor
         key={selectedEntry.id} input={selectedEntry.input} names={[record.players[0].name, record.players[1].name]}
         busy={busy} errorBlock={errorBlock} onSave={saveSelectedPoint}
-      /> : <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? 'closed'} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>
+      /> : <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? (strokeMenuOpen ? 'more-strokes' : 'closed')} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>
       {panel?.kind === 'pdf-ready' || panel?.kind === 'export-match-pdf' ? error ? <Notice error>{error}</Notice> : null : errorBlock}
+      {strokeMenuOpen && endingDraft && record && <MoreShotOptions
+        name={record.players[endingDraft.actor].name} side={endingDraft.actor} ending={endingDraft.ending}
+        busy={busy} allowServe={allowServeStroke} onStroke={value => void stroke(value)}
+      />}
       {panel?.kind === 'settings' && <Stack>
         <Heading>Settings</Heading>
         {notice ? <Notice>{notice}</Notice> : null}

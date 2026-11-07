@@ -14,6 +14,7 @@ const icons = {
   note: require('../../assets/icons/note.png'),
   players: require('../../assets/icons/players.png'),
   plus: require('../../assets/icons/plus.png'),
+  racket: require('../../assets/icons/racket.png'),
   record: require('../../assets/icons/record.png'),
   report: require('../../assets/icons/report.png'),
   settings: require('../../assets/icons/settings.png'),

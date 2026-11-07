@@ -6,7 +6,7 @@ The first version should let a parent follow a junior match on an Android phone 
 
 Select the tracked player and opponent, then choose a saved format or customize one. The initial presets are one FAST4 set, two FAST4 sets with a deciding match tie-break, and two normal sets with a deciding match tie-break. Show a plain-language summary of the actual rules before starting. A format name alone must not silently determine ambiguous rules.
 
-Choose the first server and recording depth. Tournament, round, date, venue, court surface, indoor or outdoor conditions, weather, ball stage, and notes belong to the match but can be added later. Setup should not require completing every optional field.
+Choose the recording depth and save the match before play begins. Ask for the first server only when starting the saved match, which also starts its clock. Tournament, round, date, venue, court surface, indoor or outdoor conditions, weather, ball stage, and notes belong to the match but can be added later. Setup should not require completing every optional field.
 
 Remember useful defaults and offer a rematch shortcut that copies relevant setup into a new match. Keep each match's rules and participant details historically stable when presets or player profiles change.
 
@@ -14,9 +14,9 @@ Remember useful defaults and offer a rematch shortcut that copies relevant setup
 
 | Mode | Information requested | Intended use |
 | --- | --- | --- |
-| Score only | Point winner | Busy periods or simple scorekeeping |
-| Point endings | Player playing the final shot, outcome, and stroke | The basic paper chart workflow |
-| Serves and endings | Serve attempts, optional return details, and point ending with stroke | More detailed performance analysis |
+| Score | Point winner | Busy periods or simple scorekeeping |
+| Score & last shot | Point winner, final-shot outcome, and stroke | The basic paper chart workflow |
+| Score, serve & last shot | Serve attempts, optional return details, and point ending with stroke | More detailed performance analysis |
 
 Allow the observer to change depth during a match. Previously unrecorded information remains unknown, and reports show how much of the match each statistic covers.
 
@@ -24,11 +24,11 @@ Allow the observer to change depth during a match. Previously unrecorded informa
 
 Keep the score, current server, and player names visible. Distinguish the official point outcome from the observer's description of the rally.
 
-In score-only mode, one tap on a player's point button records the point. In point-ending mode, choose who won the point first. Then choose a winner by that player or a forced or unforced error by the other player, and select the stroke to record the point. A backhand unforced error and a forehand unforced error must remain distinct in storage and reports.
+In Score mode, one tap on a player's point button records the point. In Score & last shot mode, choose who won the point first. Keep that selection in a separate card with Change winner. Then tap Forehand, Backhand or Volley within the relevant winner, unforced-error or forced-error section to record the point in one tap. A backhand unforced error and a forehand unforced error must remain distinct in storage and reports.
 
-Stroke selection is part of normal entry for every winner, forced error, and unforced error. Initial choices are forehand, backhand, volley, overhead, serve, and other. Aces and double faults have a known serve stroke without an extra question. Keep a deliberate shot-not-seen option for incomplete observations. Selecting Other identifies a stroke outside the listed categories. The players appear in scoreboard order. The last option, **Not sure how it ended**, records the selected point winner and leaves the ending unknown.
+Each section has a racket button for a modal with Overhead, Other and I'm not sure. The last choice preserves the selected ending but leaves the stroke unknown; Other identifies a stroke outside the listed categories. Serve is available only for the actual server's winner or unforced error when no serve or return observation has been entered, recording an ace or double fault respectively. The players appear in scoreboard order. A visually separated **I'm not sure how it ended** option records the selected point winner and leaves both ending and stroke unknown.
 
-Selecting a player and rally ending leaves the score as it is until the stroke is saved. Back returns from stroke selection to the available endings. Change winner returns to the player choice and preserves any serve observations for the current point.
+Selecting a point winner or opening the racket menu leaves the score unchanged. Close or Android Back dismisses the menu without saving, retaining the winner selection. An unfinished selection survives an app restart. Change winner returns to the player choice and preserves any serve observations for the current point.
 
 In detailed mode, serve entry adapts to the current server. A first-serve fault exposes a second-serve entry; a double fault finishes the point without asking for a rally ending. Aces and other service outcomes must avoid duplicate entry. A let follows the configured rule and does not automatically become a fault or a completed point.
 
@@ -36,7 +36,7 @@ Support both entering serve details as play happens and filling them in after th
 
 ### Point examples
 
-- For an opponent's backhand unforced error, select the tracked player as the point winner, then choose the opponent's unforced error and Backhand.
+- For an opponent's backhand unforced error, select the tracked player as the point winner, then tap Backhand in the opponent's unforced-error section.
 - Tracked player's second serve is in, then opponent hits a return winner: preserve the serve observation and the opponent's winning return.
 - Observer sees only the awarded outcome: record the point winner and leave stroke and cause unknown.
 - Observer disputes a line call: retain the awarded point, separately attach a disputed-call observation, and allow a note about who made the call.
