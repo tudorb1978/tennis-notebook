@@ -313,16 +313,13 @@ function Main() {
             <T small muted>{endingNames[last.point.ending]}{last.point.stroke ? ` · ${strokeNames[last.point.stroke]}` : ''}</T>
           </View>
           <Row style={{ flexGrow: 1, flexBasis: 232, maxWidth: 310, gap: 7, alignItems: 'stretch' }}>
-            <Button compact icon="edit" label="Edit point" style={actionStyle} disabled={busy}
-              onPress={() => openPointPanel('edit-point', last.id)}>Edit</Button>
+            <Button quiet compact label="Edit point" style={{ width: 48, paddingHorizontal: 0, alignItems: 'center' }} disabled={busy}
+              onPress={() => openPointPanel('edit-point', last.id)}><Icon name="edit" color={c.sub} size={17} /></Button>
             <Button compact icon="note" label={hasPointNotes(last.point.observations) ? 'Edit notes' : 'Add notes'} style={actionStyle} disabled={busy}
               onPress={() => openPointPanel('point-notes', last.id)}>Notes</Button>
-            <Button compact label="Delete last point" style={actionStyle} disabled={busy || !projection?.canDeleteLastPoint}
+            <Button quiet compact label="Delete last point" style={{ width: 48, paddingHorizontal: 0, alignItems: 'center' }} disabled={busy || !projection?.canDeleteLastPoint}
               onPress={() => openPointPanel('delete-point', last.id)}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <Icon name="trash" color={c.error} size={15} />
-                <T small bold style={{ color: c.error, flexShrink: 1, textAlign: 'center' }}>Delete</T>
-              </View>
+              <Icon name="trash" color={c.sub} size={17} />
             </Button>
           </Row>
         </Row>

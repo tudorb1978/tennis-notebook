@@ -20,15 +20,15 @@ const splitSets: MatchEvent[] = [
 test('Saved point scores follow the player order, including advantage and an empty projection', () => {
   assert.deepEqual(pointSavedSummary(replayMatch(format, 0, [
     { id: 'point', type: 'point', input: { type: 'winner-only', winner: 1 } },
-  ]), names), { score: '0–15', context: 'Set 1 · Games 0–0', next: 'Next point' });
+  ]), names), { score: '0–15', context: 'Set 1 · Games 0–0', next: 'Next point', winnerSide: 1 });
 
   assert.deepEqual(pointSavedSummary(replayMatch(presets['normal-match-tiebreak'], 0, [
     { id: 'score', type: 'correction', reason: 'Current score', correction: { games: [2, 1], points: [3, 3], nextServer: 0 } },
     { id: 'point', type: 'point', input: { type: 'winner-only', winner: 1 } },
-  ]), names), { score: '40–Ad', context: 'Set 1 · Games 2–1', next: 'Next point' });
+  ]), names), { score: '40–Ad', context: 'Set 1 · Games 2–1', next: 'Next point', winnerSide: 1 });
 
   assert.deepEqual(pointSavedSummary(replayMatch(format, 0, []), names),
-    { score: '0–0', context: 'Set 1 · Games 0–0', next: 'Next point' });
+    { score: '0–0', context: 'Set 1 · Games 0–0', next: 'Next point', winnerSide: null });
 });
 
 test('A deciding deuce point shows the new games score instead of the reset point score', () => {
@@ -37,7 +37,7 @@ test('A deciding deuce point shows the new games score instead of the reset poin
     { id: 'point', type: 'point', input: { type: 'winner-only', winner: 1 } },
   ]);
   assert.deepEqual(pointSavedSummary(projection, names),
-    { score: '1–2', context: 'Game to Harry · Set 1', next: 'Next game' });
+    { score: '1–2', context: 'Game to Harry · Set 1', next: 'Next game', winnerSide: 1 });
 });
 
 test('Entering and continuing a set tie-break identifies the tie-break and the set score', () => {
@@ -46,21 +46,21 @@ test('Entering and continuing a set tie-break identifies the tie-break and the s
     { id: 'point', type: 'point', input: { type: 'winner-only', winner: 0 } },
   ];
   assert.deepEqual(pointSavedSummary(replayMatch(format, 0, events), names),
-    { score: '3–3', context: 'Game to Stefan · Set 1', next: 'Tie-break next' });
+    { score: '3–3', context: 'Game to Stefan · Set 1', next: 'Tie-break next', winnerSide: 0 });
   assert.deepEqual(pointSavedSummary(replayMatch(format, 0, [
     ...events, { id: 'tie-point', type: 'point', input: { type: 'winner-only', winner: 1 } },
-  ]), names), { score: '0–1', context: 'Set 1 · Tie-break at 3–3', next: 'Next point' });
+  ]), names), { score: '0–1', context: 'Set 1 · Tie-break at 3–3', next: 'Next point', winnerSide: 1 });
 });
 
 test('Set wins show the completed set, including an extended tie-break, and identify what follows', () => {
   assert.deepEqual(pointSavedSummary(replayMatch(format, 0, firstSet), names),
-    { score: '4–2', context: 'Set 1 to Stefan', next: 'Next set' });
+    { score: '4–2', context: 'Set 1 to Stefan', next: 'Next set', winnerSide: 0 });
   assert.deepEqual(pointSavedSummary(replayMatch(format, 0, splitSets), names),
-    { score: '3–4[8]', context: 'Set 2 to Harry', next: 'Match tie-break next' });
+    { score: '3–4[8]', context: 'Set 2 to Harry', next: 'Match tie-break next', winnerSide: 1 });
   assert.deepEqual(pointSavedSummary(replayMatch(format, 0, [
     ...splitSets,
     { id: 'tie-point', type: 'point', input: { type: 'winner-only', winner: 0 } },
-  ]), names), { score: '1–0', context: 'Match tie-break', next: 'Next point' });
+  ]), names), { score: '1–0', context: 'Match tie-break', next: 'Next point', winnerSide: 0 });
 });
 
 test('A deciding match tie-break win shows the full match result', () => {
@@ -70,7 +70,7 @@ test('A deciding match tie-break win shows the full match result', () => {
     { id: 'final-point', type: 'point', input: { type: 'winner-only', winner: 1 } },
   ]);
   assert.deepEqual(pointSavedSummary(projection, names),
-    { score: '4–2  3–4[8]  15–17', context: 'Harry wins', next: 'Match complete' });
+    { score: '4–2  3–4[8]  15–17', context: 'Harry wins', next: 'Match complete', winnerSide: 1 });
 });
 
 test('A single-set match ending in a set tie-break shows the final result and winner', () => {
@@ -79,5 +79,5 @@ test('A single-set match ending in a set tie-break shows the final result and wi
     { id: 'point', type: 'point', input: { type: 'winner-only', winner: 1 } },
   ]);
   assert.deepEqual(pointSavedSummary(projection, names),
-    { score: '3–4[7]', context: 'Harry wins', next: 'Match complete' });
+    { score: '3–4[7]', context: 'Harry wins', next: 'Match complete', winnerSide: 1 });
 });

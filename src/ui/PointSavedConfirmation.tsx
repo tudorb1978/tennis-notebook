@@ -9,11 +9,16 @@ export function PointSavedConfirmation({ summary, names, onDone }: {
   onDone: () => void;
 }) {
   const c = useTheme();
+  const won = summary.winnerSide === 0;
+  const lost = summary.winnerSide === 1;
+  const accent = lost ? c.reportPlayers[1].header : c.lime;
+  const accentInk = lost ? c.reportPlayers[1].ink : c.limeInk;
+  const pointResult = won ? 'Point won' : lost ? 'Point lost' : '';
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
   const done = useRef(onDone);
   done.current = onDone;
-  const announcement = useRef(`Point saved. ${summary.context}. Score ${summary.score}, with ${names[0]} first and ${names[1]} second. ${summary.next}.`).current;
+  const announcement = useRef(`Point saved. ${summary.winnerSide === null ? '' : `${names[summary.winnerSide]} won the point. `}${summary.context}. Score ${summary.score}, with ${names[0]} first and ${names[1]} second. ${summary.next}.`).current;
   const [webAnnouncement, setWebAnnouncement] = useState('');
 
   useEffect(() => {
@@ -31,7 +36,7 @@ export function PointSavedConfirmation({ summary, names, onDone }: {
 
     const start = (reduced: boolean) => {
       if (!active) return;
-      if (!reduced) {
+      if (!reduced && won) {
         scale.setValue(0.975);
         entrance = Animated.timing(scale, { toValue: 1, duration: 190, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== 'web' });
         entrance.start();
@@ -56,7 +61,7 @@ export function PointSavedConfirmation({ summary, names, onDone }: {
       entrance?.stop();
       lifetime?.stop();
     };
-  }, [announcement, opacity, scale]);
+  }, [announcement, opacity, scale, won]);
 
   const scoreSize = summary.score.length > 18 ? 21 : summary.score.length > 12 ? 30 : summary.score.length > 8 ? 36 : 46;
   return <Animated.View testID="point-saved-confirmation" pointerEvents="none" accessible={Platform.OS !== 'web'} role="status"
@@ -66,17 +71,19 @@ export function PointSavedConfirmation({ summary, names, onDone }: {
     <Animated.View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={{ width: '100%', maxWidth: 480, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', gap: 4, transform: [{ scale }] }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-        <View style={{ width: 23, height: 23, borderRadius: 12, backgroundColor: c.lime, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: c.limeInk, fontSize: 16, lineHeight: 21, fontWeight: '700' }}>✓</Text>
+        <View testID="point-saved-accent" style={{ width: 23, height: 23, borderRadius: 12, backgroundColor: accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: accentInk, fontSize: 16, lineHeight: 21, fontWeight: '700' }}>✓</Text>
         </View>
-        <Text style={{ color: c.lime, fontSize: 12, lineHeight: 18, fontWeight: '700', letterSpacing: 1 }}>Point saved</Text>
+        <Text style={{ color: c.courtSub, fontSize: 12, lineHeight: 18, fontWeight: '700', letterSpacing: 1 }}>Point saved</Text>
       </View>
       <Text testID="point-saved-score" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
         style={{ alignSelf: 'stretch', textAlign: 'center', color: c.courtInk, fontSize: scoreSize, lineHeight: Math.round(scoreSize * 1.17), fontWeight: '700', letterSpacing: 0.3, fontVariant: ['tabular-nums'] }}>
         {summary.score}
       </Text>
       <Text testID="point-saved-context" style={{ color: c.courtInk, fontSize: 13, lineHeight: 18, textAlign: 'center' }}>{summary.context}</Text>
-      <Text style={{ color: c.courtSub, fontSize: 12, lineHeight: 17, textAlign: 'center' }}>{summary.next}</Text>
+      <Text testID="point-saved-result" style={{ color: pointResult ? accent : c.courtSub, fontSize: 12, lineHeight: 17, textAlign: 'center' }}>
+        {pointResult ? `${pointResult} · ${summary.next}` : summary.next}
+      </Text>
     </Animated.View>
   </Animated.View>;
 }
