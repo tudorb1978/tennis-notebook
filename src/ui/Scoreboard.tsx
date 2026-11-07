@@ -7,6 +7,8 @@ import { setTieBreakLabel } from '../reports/report.ts';
 import type { MatchRecord } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
 import { Button, Card, PlayerBadge, T, useTheme } from './kit.tsx';
+import { PointSavedConfirmation } from './PointSavedConfirmation.tsx';
+import type { PointSavedSummary } from './pointSaved.ts';
 
 const stakeLabels: Record<PointStake, string> = { match: 'Match point', set: 'Set point', break: 'Break point' };
 
@@ -30,7 +32,7 @@ function MatchClock({ playingMs, runningSinceMs }: { playingMs: number; runningS
   </Text>;
 }
 
-export function Scoreboard({ record, score, timing, toggleServer, correctScore, showPointStakes, reportView, busy }: {
+export function Scoreboard({ record, score, timing, toggleServer, correctScore, showPointStakes, reportView, busy, savedPoint, onSavedPointDone }: {
   record: MatchRecord;
   score: MatchScore;
   timing: MatchTiming | null;
@@ -39,6 +41,8 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
   showPointStakes: boolean;
   reportView: boolean;
   busy: boolean;
+  savedPoint: { id: string; summary: PointSavedSummary } | null;
+  onSavedPointDone: (id: string) => void;
 }) {
   type Column = { label: string; values: readonly [string, string]; large: boolean; tieBreak?: { label: string; winner: Side } };
   const c = useTheme(); const columns: Column[] = [];
@@ -122,5 +126,7 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
         </Button>}
       </View>}
     </View>
+    {savedPoint && <PointSavedConfirmation key={savedPoint.id} summary={savedPoint.summary}
+      names={[record.players[0].name, record.players[1].name]} onDone={() => onSavedPointDone(savedPoint.id)} />}
   </Card>;
 }

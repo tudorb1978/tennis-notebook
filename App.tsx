@@ -28,6 +28,8 @@ import type { SetupValues } from './src/ui/forms.tsx';
 import { PointNotesEditor } from './src/ui/ObservationForm.tsx';
 import { OutcomeGuide, OutcomeHelpButton } from './src/ui/OutcomeGuide.tsx';
 import { Scoreboard } from './src/ui/Scoreboard.tsx';
+import { pointSavedSummary } from './src/ui/pointSaved.ts';
+import type { PointSavedSummary } from './src/ui/pointSaved.ts';
 import { ServeRecordingCard } from './src/ui/ServeRecordingCard.tsx';
 import { MatchReport } from './src/ui/MatchReport.tsx';
 import { PlayerPerformance } from './src/ui/PlayerPerformance.tsx';
@@ -70,6 +72,10 @@ function Main() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(''); const [notice, setNotice] = useState('');
+  const [savedPoint, setSavedPoint] = useState<{ id: string; matchId: string; summary: PointSavedSummary } | null>(null);
+  const dismissSavedPoint = useCallback((id: string) => {
+    setSavedPoint(previous => previous?.id === id ? null : previous);
+  }, []);
   const [filter, setFilter] = useState('all');
   const [setupEvent, setSetupEvent] = useState<MatchGroup | null>(null);
   const [reportPlayerId, setReportPlayerId] = useState('');
@@ -93,25 +99,27 @@ function Main() {
 
   const external = async (operation: () => Promise<void>) => {
     if (saving.current) return;
+    setSavedPoint(null);
     saving.current = true; setBusy(true); setError(''); retry.current = null;
     try { await operation(); }
     catch (e) { setError(e instanceof Error ? e.message : 'The operation could not be completed.'); }
     finally { saving.current = false; setBusy(false); }
   };
-  const mutate = async (transform: (previous: MatchRecord) => MatchRecord, done?: () => void): Promise<boolean> => {
+  const mutate = async (transform: (previous: MatchRecord) => MatchRecord, done?: (saved: MatchRecord) => void): Promise<boolean> => {
     if (saving.current || !current.current || !repository.current) return false;
+    setSavedPoint(null);
     saving.current = true; setBusy(true); setError('');
     const previous = current.current;
     try {
       const candidate = { ...transform(previous), updatedAt: new Date().toISOString() };
       const saved = await repository.current.saveMatch(candidate, previous.revision);
-      setCurrent(saved); updateList(saved); retry.current = null; done?.(); return true;
+      setCurrent(saved); updateList(saved); retry.current = null; done?.(saved); return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the entry.');
       retry.current = () => mutate(transform, done); return false;
     } finally { saving.current = false; setBusy(false); }
   };
-  const addEvent = (event: MatchEvent, done?: () => void, clearDraft = false) => mutate(m => {
+  const addEvent = (event: MatchEvent, done?: (saved: MatchRecord) => void, clearDraft = false) => mutate(m => {
     if (m.firstServer === null) throw new Error('Start the match before recording play.');
     return { ...m, events: appendEvent(m.format, m.firstServer, m.events, event), draft: clearDraft ? emptyDraft() : m.draft };
   }, done);
@@ -132,8 +140,13 @@ function Main() {
       recordedAt: new Date().toISOString(),
       input: actualServer == null ? input : { ...input, actualServer },
     };
-    return addEvent(event, () => {
-      setNotice('Point saved on this phone.');
+    return addEvent(event, saved => {
+      if (saved.firstServer !== null) {
+        const next = replayMatch(saved.format, saved.firstServer, saved.events);
+        setSavedPoint({ id: event.id, matchId: saved.id,
+          summary: pointSavedSummary(next, [saved.players[0].name, saved.players[1].name]) });
+      }
+      setNotice('');
       mainScroll.current?.scrollTo({ y: 0, animated: false });
     }, true);
   };
@@ -232,9 +245,10 @@ function Main() {
 
   const openPointPanel = (kind: PointPanel, id: string) => {
     if (!canRecord && kind !== 'point-notes') return;
+    setSavedPoint(null);
     setError(''); setPanel({ kind, id });
   };
-  const openMatchNotes = () => { setError(''); setPanel({ kind: 'match-notes' }); };
+  const openMatchNotes = () => { setSavedPoint(null); setError(''); setPanel({ kind: 'match-notes' }); };
   const pointActions = (id: string, observations?: PointObservations) => <Row style={{ gap: 6 }}>
     {canRecord && <Button quiet disabled={busy} onPress={() => openPointPanel('edit-point', id)}>Edit point</Button>}
     <Button quiet disabled={busy} onPress={() => openPointPanel('point-notes', id)}>{hasPointNotes(observations) ? 'Edit notes' : 'Add notes'}</Button>
@@ -466,6 +480,8 @@ function Main() {
     record={record} score={projection.score} timing={projection.timing} showPointStakes={tab === 'record'} reportView={tab === 'report'} busy={busy}
     toggleServer={tab === 'record' ? togglePointServer : undefined}
     correctScore={tab === 'record' && !record.draft.pending ? () => { setError(''); setPanel({ kind: 'correct' }); } : undefined}
+    savedPoint={savedPoint?.matchId === record.id ? savedPoint : null}
+    onSavedPointDone={dismissSavedPoint}
   />;
 
   return <SafeAreaView style={layout.root}>
@@ -520,7 +536,7 @@ function Main() {
         const color = selected ? c.accent : c.sub;
         return <Button key={value} testID={`tab-${value}`} label={label} toggle compact quiet selected={selected} disabled={busy}
           style={{ flex: 1, paddingHorizontal: 6, backgroundColor: selected ? c.soft : 'transparent', borderColor: 'transparent' }}
-          onPress={() => { setTab(value); setNotice(''); }}>
+          onPress={() => { setSavedPoint(null); setTab(value); setNotice(''); }}>
           <View style={{ alignItems: 'center', gap: 3 }}>
             <Icon name={icon} color={color} size={17} />
             <T small bold style={{ color, fontSize: 11, lineHeight: 15 }}>{label}</T>
