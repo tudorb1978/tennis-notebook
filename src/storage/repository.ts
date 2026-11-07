@@ -34,6 +34,29 @@ export class MatchRepository {
     });
   }
   async players(): Promise<PlayerProfile[]> { return this.db.getAllAsync<PlayerProfile>('SELECT id, name, createdAt FROM players ORDER BY name COLLATE NOCASE'); }
+  renamePlayer(id: string, name: string): Promise<void> {
+    return this.serial(() => this.db.withTransactionAsync(async () => {
+      const trimmedName = name.trim();
+      if (!trimmedName || trimmedName.length > 80) throw new Error('Enter a player name between 1 and 80 characters.');
+      const player = await this.db.getFirstAsync<PlayerProfile>('SELECT id, name, createdAt FROM players WHERE id = ?', id);
+      if (!player) throw new Error('This player no longer exists. Reopen Settings to refresh the list.');
+      const renamed = { ...player, name: trimmedName };
+      validatePlayer(renamed);
+      await this.db.runAsync('UPDATE players SET name = ? WHERE id = ?', renamed.name, id);
+      for (const match of await this.matches()) {
+        if (!match.players.some(snapshot => snapshot.id === id && snapshot.name !== renamed.name)) continue;
+        const players = match.players.map(snapshot => snapshot.id === id ? { ...snapshot, name: renamed.name } : snapshot) as MatchRecord['players'];
+        await this.writeMatch({ ...match, players }, match.revision);
+      }
+    }));
+  }
+  deletePlayer(id: string): Promise<void> {
+    return this.serial(() => this.db.withTransactionAsync(async () => {
+      await this.db.runAsync("DELETE FROM preferences WHERE key = 'resumeMatch' AND value IN (SELECT id FROM matches WHERE playerId = ?)", id);
+      await this.db.runAsync('DELETE FROM matches WHERE playerId = ?', id);
+      await this.db.runAsync('DELETE FROM players WHERE id = ?', id);
+    }));
+  }
   async matches(): Promise<MatchRecord[]> {
     const rows = await this.db.getAllAsync<{ payload: string }>('SELECT payload FROM matches ORDER BY updatedAt DESC');
     return rows.map(row => { const record: unknown = JSON.parse(row.payload); validateMatch(record); return record; });

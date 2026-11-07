@@ -34,6 +34,7 @@ import { ServeRecordingCard } from './src/ui/ServeRecordingCard.tsx';
 import { MatchReport } from './src/ui/MatchReport.tsx';
 import { PlayerPerformance } from './src/ui/PlayerPerformance.tsx';
 import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
+import { DeletePlayerConfirmation, PlayerSettings, RenamePlayerForm } from './src/ui/PlayerSettings.tsx';
 import { Icon } from './src/ui/Icon.tsx';
 import type { IconName } from './src/ui/Icon.tsx';
 
@@ -50,7 +51,7 @@ const matchPDFOptions: readonly { variant: MatchPDFVariant; title: string; descr
   { variant: 'combined', title: 'Combined report', description: 'The stats summary and full point-by-point report in one PDF.', icon: 'report' },
 ];
 type PointPanel = 'edit-point' | 'point-notes' | 'delete-point';
-type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'export-match-pdf' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'open-unstarted-match' | 'start-match'; match: UnstartedMatchRecord } | { kind: 'settings' } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
+type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'export-match-pdf' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'open-unstarted-match' | 'start-match'; match: UnstartedMatchRecord } | { kind: 'settings' } | { kind: 'rename-player' | 'delete-player'; player: PlayerProfile } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
 function canRecordMatch(status: MatchScore['status'] | undefined): boolean {
   return status === 'in-progress' || status === 'suspended';
 }
@@ -175,7 +176,8 @@ function Main() {
   };
   const closePanel = () => {
     if (screen === 'home') setCurrent(null);
-    setPanel(null); setError(''); retry.current = null;
+    setPanel(panel?.kind === 'rename-player' || panel?.kind === 'delete-player' ? { kind: 'settings' } : null);
+    setError(''); retry.current = null;
   };
   useEffect(() => {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -242,6 +244,27 @@ function Main() {
     setNotice('Backup prepared. Keep a copy outside this app.');
   });
   const restore = () => external(async () => { const text = await pickBackup(); if (text) setPanel({ kind: 'import', text, preview: await repository.current!.previewImport(text) }); });
+  const refreshPlayerRecords = async () => {
+    const [nextPlayers, nextMatches] = await Promise.all([repository.current!.players(), repository.current!.matches()]);
+    const nextGroups = groupMatches(nextMatches);
+    setPlayers(nextPlayers); setMatches(nextMatches);
+    setFilter(id => id === 'all' || nextPlayers.some(player => player.id === id) ? id : 'all');
+    setReportPlayerId(id => nextPlayers.some(player => player.id === id) ? id : nextPlayers[0]?.id ?? '');
+    setReportEventKey(key => nextGroups.some(group => group.key === key) ? key : null);
+    setSetupEvent(event => event ? nextGroups.find(group => group.key === event.key) ?? null : null);
+    if (current.current) setCurrent(nextMatches.find(match => match.id === current.current?.id) ?? null);
+  };
+  const renamePlayer = (player: PlayerProfile, name: string) => external(async () => {
+    await repository.current!.renamePlayer(player.id, name);
+    await refreshPlayerRecords();
+    setPanel({ kind: 'settings' }); setNotice(`Player renamed to ${name.trim()}.`);
+  });
+  const deletePlayer = (player: PlayerProfile) => external(async () => {
+    await repository.current!.deletePlayer(player.id);
+    await refreshPlayerRecords();
+    setPanel({ kind: 'settings' }); setScreen('home');
+    setNotice(`${player.name} and their match data were deleted.`);
+  });
 
   const openPointPanel = (kind: PointPanel, id: string) => {
     if (!canRecord && kind !== 'point-notes') return;
@@ -496,7 +519,7 @@ function Main() {
           : <Button quiet compact={showRecordingNotes} icon="chevron-left" testID="back-to-matches" disabled={busy} onPress={() => void home()}>Matches</Button>}
       </View>
       {busy ? <View accessibilityLiveRegion="polite"><T small muted>Saving…</T></View>
-        : screen === 'home' ? <Button icon="settings" compact style={{ paddingHorizontal: 10 }} disabled={repository.current === null} onPress={() => { setError(''); setPanel({ kind: 'settings' }); }}>Settings</Button>
+        : screen === 'home' ? <Button icon="settings" compact style={{ paddingHorizontal: 10 }} disabled={repository.current === null} onPress={() => { setError(''); setNotice(''); setPanel({ kind: 'settings' }); }}>Settings</Button>
         : screen === 'match' && record && <Row style={{ flex: 1, minWidth: 0, justifyContent: 'flex-end', gap: 4 }}>
           {showRecordingNotes && <Button quiet compact onPress={openMatchNotes}>Match notes</Button>}
           <Button quiet compact={showRecordingNotes} onPress={() => { setError(''); setPanel({ kind: 'match-details' }); }}>Match details</Button>
@@ -524,7 +547,7 @@ function Main() {
             />
             : <Stack>{!pinScore && scoreboard}{tab === 'record' ? live() : history()}</Stack>
           : null}
-        {notice ? <View accessibilityLiveRegion="polite"><T small muted>{notice}</T></View> : null}
+        {notice && !panel ? <View accessibilityLiveRegion="polite"><T small muted>{notice}</T></View> : null}
       </ScrollView>
     </KeyboardAvoidingView>
     {screen === 'match' && <View style={layout.footer}><View style={layout.footerContent}>
@@ -559,6 +582,11 @@ function Main() {
       /> : <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? 'closed'} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>{errorBlock}
       {panel?.kind === 'settings' && <Stack>
         <Heading>Settings</Heading>
+        {notice ? <Notice>{notice}</Notice> : null}
+        <PlayerSettings players={players} matches={matches} busy={busy}
+          onRename={player => { setError(''); setNotice(''); setPanel({ kind: 'rename-player', player }); }}
+          onDelete={player => { setError(''); setNotice(''); setPanel({ kind: 'delete-player', player }); }}
+        />
         <Card>
           <Row><Icon name="settings" color={c.accent} /><T bold>Backup and restore</T></Row>
           <T small muted>Save a copy of your records before moving phones or uninstalling.</T>
@@ -566,6 +594,10 @@ function Main() {
           <Button icon="upload" disabled={busy} onPress={() => void restore()}>Restore backup</Button>
         </Card>
       </Stack>}
+      {panel?.kind === 'rename-player' && <RenamePlayerForm player={panel.player} busy={busy}
+        onCancel={closePanel} onSave={name => void renamePlayer(panel.player, name)} />}
+      {panel?.kind === 'delete-player' && <DeletePlayerConfirmation player={panel.player} matches={matches} busy={busy}
+        onCancel={closePanel} onConfirm={() => void deletePlayer(panel.player)} />}
       {(panel?.kind === 'pick-event-for-match' || panel?.kind === 'pick-event-for-report') && <Stack>
         <Heading>{panel.kind === 'pick-event-for-match' ? 'Add match to event' : 'Choose report event'}</Heading>
         {panel.kind === 'pick-event-for-report' && <Button selected={reportEventKey === null} onPress={() => { setReportEventKey(null); setPanel(null); }}>All events</Button>}

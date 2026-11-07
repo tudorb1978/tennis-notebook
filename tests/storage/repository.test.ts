@@ -111,6 +111,146 @@ test('Match deletion checks the revision and clears only its resume pointer in t
   } finally { db.close(); }
 });
 
+test('Renaming a player updates linked historical snapshots and preserves the match data and ordering', async () => {
+  const { db, repo } = await memory();
+  try {
+    const match = await repo.createMatch({
+      ...fixture(), firstServer: 0, timingStartedAt: player.createdAt, matchNotes: 'Keep attacking the short ball.',
+      events: [{ id: 'point-1', type: 'point', recordedAt: player.createdAt, input: { type: 'winner-only', winner: 0 } }],
+      draft: { ...emptyDraft(), observations: { ...emptyDraft().observations, notes: 'Keep this draft.' } },
+    }, player);
+    const unstarted = await repo.createMatch({ ...fixture('unstarted'), firstServer: null, timingStartedAt: null }, null);
+    const otherPlayer = { ...player, id: 'player-2' };
+    const unrelated = await repo.createMatch({
+      ...fixture('unrelated'), updatedAt: '2026-11-05T12:00:00.000Z',
+      players: [{ id: otherPlayer.id, name: otherPlayer.name }, { id: null, name: player.name }],
+    }, otherPlayer);
+    await repo.importNew(JSON.stringify({
+      schemaVersion: 1, application: 'tennis-tracker', exportedAt: player.createdAt, players: [player, otherPlayer],
+      matches: [{ ...fixture('linked-opponent'), players: [{ id: otherPlayer.id, name: otherPlayer.name }, { id: player.id, name: player.name }] }],
+    }));
+    const linkedOpponent = (await repo.getMatch('linked-opponent'))!;
+    const order = (await repo.matches()).map(record => record.id);
+
+    await repo.renamePlayer(player.id, '  Theodore  ');
+
+    assert.deepEqual((await repo.players()).map(profile => ({ ...profile })).find(profile => profile.id === player.id), { ...player, name: 'Theodore' });
+    assert.equal((await repo.players()).find(profile => profile.id === otherPlayer.id)!.name, player.name);
+    for (const original of [match, unstarted, linkedOpponent]) {
+      const renamed = (await repo.getMatch(original.id))!;
+      assert.deepEqual(renamed, {
+        ...original, revision: original.revision + 1,
+        players: original.players.map(snapshot => snapshot.id === player.id ? { ...snapshot, name: 'Theodore' } : snapshot),
+      });
+      await assert.rejects(repo.saveMatch(original, original.revision), /changed elsewhere/);
+    }
+    assert.deepEqual(await repo.getMatch(unrelated.id), unrelated);
+    assert.deepEqual((await repo.matches()).map(record => record.id), order);
+    assert.equal(await repo.resumeId(), unrelated.id);
+    const renamedMatch = (await repo.getMatch(match.id))!;
+    assert.ok(reportHTML(renamedMatch).includes('Theodore'));
+    assert.ok(reportCSV(renamedMatch).includes('Theodore'));
+    assert.equal(playerPerformance([renamedMatch], 'Theodore', 'All matches').pointCount, 1);
+    const backup = parseBackup(await repo.backup());
+    assert.equal(backup.players.find(profile => profile.id === player.id)!.name, 'Theodore');
+    assert.equal(backup.matches.find(record => record.id === linkedOpponent.id)!.players[1].name, 'Theodore');
+  } finally { db.close(); }
+});
+
+test('Player renaming validates trimmed names and supports a profile with no matches', async () => {
+  const { db, repo } = await memory();
+  try {
+    await repo.importNew(JSON.stringify({ schemaVersion: 1, application: 'tennis-tracker', exportedAt: player.createdAt, players: [player], matches: [] }));
+    for (const name of ['', ' \n\t ', 'a'.repeat(81)]) {
+      await assert.rejects(repo.renamePlayer(player.id, name), /between 1 and 80/);
+    }
+    assert.deepEqual((await repo.players()).map(profile => ({ ...profile })), [player]);
+    await assert.rejects(repo.renamePlayer('missing-player', 'Theodore'), /no longer exists/);
+    await repo.renamePlayer(player.id, ` ${'a'.repeat(80)} `);
+    assert.equal((await repo.players())[0]!.name, 'a'.repeat(80));
+    assert.equal((await repo.players())[0]!.createdAt, player.createdAt);
+    assert.deepEqual(await repo.matches(), []);
+  } finally { db.close(); }
+});
+
+test('A failed player rename rolls back the profile and every match revision', async () => {
+  const { db, repo } = await memory();
+  try {
+    const first = await repo.createMatch(fixture(), player);
+    const second = await repo.createMatch({ ...fixture('second-match'), updatedAt: '2026-11-03T12:00:00.000Z' }, null);
+    db.exec("CREATE TRIGGER prevent_match_rename BEFORE UPDATE ON matches WHEN OLD.id = 'second-match' BEGIN SELECT RAISE(ABORT, 'rename failure'); END");
+    await assert.rejects(repo.renamePlayer(player.id, 'Theodore'), /rename failure/);
+    assert.deepEqual((await repo.players()).map(profile => ({ ...profile })), [player]);
+    assert.deepEqual(await repo.getMatch(first.id), first);
+    assert.deepEqual(await repo.getMatch(second.id), second);
+    assert.equal(await repo.resumeId(), second.id);
+    db.exec('DROP TRIGGER prevent_match_rename');
+    await repo.renamePlayer(player.id, 'Theodore');
+    assert.equal((await repo.getMatch(first.id))!.revision, first.revision + 1);
+    assert.equal((await repo.getMatch(second.id))!.players[0].name, 'Theodore');
+  } finally { db.close(); }
+});
+
+test('Player deletion removes owned records and backups while preserving another owner and resume pointer', async () => {
+  const { db, repo } = await memory();
+  try {
+    const match = await repo.createMatch({
+      ...fixture(), firstServer: 0, timingStartedAt: player.createdAt, matchNotes: 'Private match notes.',
+      events: [{ id: 'point-1', type: 'point', input: { type: 'winner-only', winner: 0 } }],
+      draft: { ...emptyDraft(), observations: { ...emptyDraft().observations, notes: 'Private draft notes.' } },
+    }, player);
+    const unstarted = await repo.createMatch({ ...fixture('unstarted'), firstServer: null, timingStartedAt: null }, null);
+    const otherPlayer = { ...player, id: 'player-2' };
+    const other = await repo.createMatch({
+      ...fixture('other-match'), players: [{ id: otherPlayer.id, name: otherPlayer.name }, { id: player.id, name: player.name }],
+    }, otherPlayer);
+
+    await repo.deletePlayer(player.id);
+
+    assert.equal(await repo.getMatch(match.id), null);
+    assert.equal(await repo.getMatch(unstarted.id), null);
+    assert.deepEqual(await repo.getMatch(other.id), other);
+    assert.equal(await repo.resumeId(), other.id);
+    const backup = parseBackup(await repo.backup());
+    assert.deepEqual(backup.players, [otherPlayer]);
+    assert.deepEqual(backup.matches, [other]);
+    await repo.deletePlayer(player.id);
+    assert.equal(await repo.resumeId(), other.id);
+
+    const emptyPlayer = { ...player, id: 'empty-player', name: 'No matches yet' };
+    await repo.importNew(JSON.stringify({ schemaVersion: 1, application: 'tennis-tracker', exportedAt: player.createdAt, players: [emptyPlayer], matches: [] }));
+    await repo.deletePlayer(emptyPlayer.id);
+    assert.deepEqual((await repo.players()).map(profile => ({ ...profile })), [otherPlayer]);
+    assert.deepEqual(await repo.matches(), [other]);
+    assert.equal(await repo.resumeId(), other.id);
+  } finally { db.close(); }
+});
+
+test('Player deletion rolls back on failure and clears an owned resume pointer only after success', async () => {
+  const { db, repo } = await memory();
+  try {
+    const match = await repo.createMatch(fixture(), player);
+    const second = await repo.createMatch(fixture('second-match'), null);
+    db.exec("CREATE TRIGGER prevent_player_delete BEFORE DELETE ON players BEGIN SELECT RAISE(ABORT, 'delete failure'); END");
+    await assert.rejects(repo.deletePlayer(player.id), /delete failure/);
+    assert.deepEqual((await repo.players()).map(profile => ({ ...profile })), [player]);
+    assert.deepEqual(await repo.getMatch(match.id), match);
+    assert.deepEqual(await repo.getMatch(second.id), second);
+    assert.equal(await repo.resumeId(), second.id);
+    db.exec('DROP TRIGGER prevent_player_delete');
+
+    await repo.deletePlayer(player.id);
+
+    assert.deepEqual(await repo.players(), []);
+    assert.deepEqual(await repo.matches(), []);
+    assert.equal(await repo.resumeId(), null);
+    await assert.rejects(repo.saveMatch(match, match.revision), /changed elsewhere/);
+    await assert.rejects(repo.createMatch(fixture('late-match'), null), /Select a saved player/);
+    await repo.deletePlayer(player.id);
+    assert.equal(await repo.resumeId(), null);
+  } finally { db.close(); }
+});
+
 test('Failed match creation rolls back the profile insert and leaves existing matches intact', async () => {
   const { db, repo } = await memory();
   try {
