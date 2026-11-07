@@ -23,7 +23,7 @@ export function Eyebrow({ children, style }: { children: React.ReactNode; style?
 export function playerBadgeColors(c: Palette, side: Side) {
   return side === 0
     ? { backgroundColor: c.lime, borderColor: c.lime, ink: c.limeInk }
-    : { backgroundColor: c.card, borderColor: c.line, ink: c.ink };
+    : { backgroundColor: c.reportPlayers[1].header, borderColor: c.reportPlayers[1].header, ink: c.reportPlayers[1].ink };
 }
 export function PlayerBadge({ side, children, numberOfLines, style }: { side: Side; children: string; numberOfLines?: number; style?: StyleProp<ViewStyle> }) {
   const { backgroundColor, borderColor, ink } = playerBadgeColors(useTheme(), side);

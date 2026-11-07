@@ -6,7 +6,7 @@ import type { MatchScore, PointStake, Side } from '../domain/scoring.ts';
 import { setTieBreakLabel } from '../reports/report.ts';
 import type { MatchRecord } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
-import { Button, Card, PlayerBadge, T, useTheme } from './kit.tsx';
+import { Button, Card, PlayerBadge, playerBadgeColors, T, useTheme } from './kit.tsx';
 import { PointSavedConfirmation } from './PointSavedConfirmation.tsx';
 import type { PointSavedSummary } from './pointSaved.ts';
 
@@ -84,30 +84,36 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
         fontWeight: col.large ? '700' : '500',
       }}>{col.label}</Text>)}
     </View>
-    {([0, 1] as const).map(side => <View key={side} style={row}>
+    {([0, 1] as const).map(side => {
+      const { backgroundColor, ink } = playerBadgeColors(c, side);
+      return <View key={side} style={row}>
       <View style={{ ...row, flex: 1, minWidth: 0, paddingRight: 4 }}>
-        <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: serving === side ? c.lime : 'transparent' }} />
+        <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: serving === side ? backgroundColor : 'transparent' }} />
         <PlayerBadge side={side} numberOfLines={2} style={{ alignSelf: 'center' }}>{record.players[side].name}</PlayerBadge>
       </View>
       {columns.map((col, i) => {
         const tieBreak = col.tieBreak && col.tieBreak.winner !== side ? col.tieBreak.label : '';
         return <View key={i} style={{
           width: scoreWidth(col), minHeight: 34, justifyContent: 'center', borderRadius: 8,
-          backgroundColor: col.large ? c.lime : 'transparent',
+          backgroundColor: col.large ? backgroundColor : 'transparent',
         }}>
           <Text testID={`score-${side}-${i}`} accessibilityLabel={`${record.players[side].name}, ${col.label}, ${col.values[side]}${tieBreak}`} style={{
-            textAlign: 'center', color: col.large ? c.limeInk : c.courtInk, fontSize: col.large ? 26 : 19,
+            textAlign: 'center', color: col.large ? ink : c.courtInk, fontSize: col.large ? 26 : 19,
             fontWeight: col.large ? '700' : '500', fontVariant: ['tabular-nums'],
           }}>{col.values[side]}{tieBreak && <Text style={{ fontSize: 11 }}>{tieBreak}</Text>}</Text>
         </View>;
       })}
-    </View>)}
+    </View>;
+    })}
     {stakes?.some(labels => labels.length > 0) && <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
-      {([0, 1] as const).map(side => stakes[side].length > 0 && <View key={side} style={{ maxWidth: '100%', backgroundColor: c.lime, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2 }}>
-        <Text testID={`point-stakes-${side}`} style={{ color: c.limeInk, fontSize: 12, lineHeight: 18, fontWeight: '700' }}>
+      {([0, 1] as const).map(side => {
+        const { backgroundColor, ink } = playerBadgeColors(c, side);
+        return stakes[side].length > 0 && <View key={side} style={{ maxWidth: '100%', backgroundColor, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2 }}>
+        <Text testID={`point-stakes-${side}`} style={{ color: ink, fontSize: 12, lineHeight: 18, fontWeight: '700' }}>
           {[record.players[side].name, ...stakes[side].filter(stake => stake !== 'set' || !stakes[side].includes('match')).map(stake => stakeLabels[stake])].join(' · ')}
         </Text>
-      </View>)}
+      </View>;
+      })}
     </View>}
     <View style={{ ...row, marginTop: 3, borderTopWidth: 1, borderColor: c.courtLine, minHeight: 34 }}>
       <T small style={{ color: c.courtSub, flex: 1, minWidth: 0 }}>{status}</T>

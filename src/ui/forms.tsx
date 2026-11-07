@@ -211,7 +211,7 @@ export function StartMatchForm({ record, busy, onStart }: { record: MatchRecord;
           onPress={() => setFirstServer(side)}>
           <View style={{ alignItems: 'center', gap: 3 }}>
             <T bold style={{ color: ink, textAlign: 'center' }}>{player.name}</T>
-            <T small style={{ color: side === 0 ? ink : c.sub }}>{side === 0 ? 'Your player' : 'Opponent'}</T>
+            <T small style={{ color: ink }}>{side === 0 ? 'Your player' : 'Opponent'}</T>
           </View>
         </Button>;
       })}
