@@ -74,18 +74,43 @@ def fill(resource, value, scroll=False):
 def capture(name):
     Path(args.output, name).write_bytes(run('exec-out', 'screencap', '-p', binary=True))
 
+def pdf_app_text(items):
+    return '\n'.join(
+        n.attrib.get('text') or n.attrib.get('content-desc', '')
+        for n in items if n.attrib.get('package') == package
+    )
+
+def assert_no_pdf_error(report, items):
+    app_text = pdf_app_text(items)
+    if any(message in app_text for message in (
+        'URI is not absolute', 'FileSystemFile.bytes', 'Could not load a report asset',
+        'Could not open this PDF.', 'This PDF is no longer available.',
+        'File sharing is unavailable on this device.', 'No PDF viewer is available.',
+    )):
+        raise AssertionError(f'{report} PDF export failed:\n{app_text}')
+    return app_text
+
+def pdf_control(items, resource):
+    return next((n for n in items if n.attrib.get('resource-id') == resource
+        or n.attrib.get('resource-id', '').endswith(':id/' + resource)), None)
+
+def wait_for_pdf_ready(report):
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        items = nodes()
+        app_text = assert_no_pdf_error(report, items)
+        view, share = (pdf_control(items, resource) for resource in ('pdf-view', 'pdf-share'))
+        if locate(items, text='Your PDF is ready') and view is not None and share is not None:
+            if share.attrib.get('enabled') == 'true':
+                return items
+        time.sleep(.3)
+    raise AssertionError(f'{report} PDF was not prepared within 60 seconds:\n{app_text}')
+
 def wait_for_pdf_chooser(report):
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         items = nodes()
-        app_text = '\n'.join(
-            n.attrib.get('text') or n.attrib.get('content-desc', '')
-            for n in items if n.attrib.get('package') == package
-        )
-        if any(message in app_text for message in (
-            'URI is not absolute', 'FileSystemFile.bytes', 'Could not load a report asset',
-        )):
-            raise AssertionError(f'{report} PDF export failed:\n{app_text}')
+        app_text = assert_no_pdf_error(report, items)
         if any(
             'intentresolver' in n.attrib.get('package', '')
             or 'Chooser' in n.attrib.get('class', '')
@@ -95,6 +120,60 @@ def wait_for_pdf_chooser(report):
             return
         time.sleep(.3)
     raise AssertionError(f'{report} PDF export did not open Android’s share chooser within 60 seconds:\n{app_text}')
+
+def wait_for_pdf_viewer(report):
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        items = nodes()
+        app_text = assert_no_pdf_error(report, items)
+        activities = run('shell', 'dumpsys', 'activity', 'activities')
+        resumed = re.search(r'\btopResumedActivity\s*[:=][^\n]*', activities) or \
+            re.search(r'\bmResumedActivity\s*[:=][^\n]*', activities) or \
+            re.search(r'\bResumedActivity\s*[:=][^\n]*', activities)
+        if resumed and package not in resumed.group():
+            # A resolver is a valid handoff when no default PDF viewer is set.
+            # Check the PDF content URI and read grant rather than assuming a viewer's UI.
+            intents = re.findall(r'Intent \{[^}]*\}', activities)
+            preview_intent = next((intent for intent in intents
+                if 'act=android.intent.action.VIEW' in intent
+                and 'dat=content://' in intent and 'typ=application/pdf' in intent), None)
+            if preview_intent:
+                flags = re.search(r'flg=0x([0-9a-fA-F]+)', preview_intent)
+                assert flags and int(flags[1], 16) & 1, \
+                    f'{report} preview did not grant read access: {preview_intent}'
+                external_text = '\n'.join(n.attrib.get('text', '') for n in items
+                    if n.attrib.get('package') not in (package, 'com.android.systemui'))
+                assert not re.search(r"cannot open|can't open|unable to open|invalid PDF|file not found", external_text, re.I), \
+                    f'{report} PDF viewer could not open the file:\n{external_text}'
+                return 'viewer chooser' if re.search(r'ResolverActivity|intentresolver', resumed.group(), re.I) else 'viewer'
+        time.sleep(.3)
+    raise AssertionError(f'{report} View PDF did not hand off to Android within 30 seconds:\n{app_text}')
+
+def exercise_prepared_pdf(report, prefix):
+    items = wait_for_pdf_ready(report)
+    title = {'summary': 'Stats summary', 'point-by-point': 'Point-by-point',
+        'combined': 'Combined report', 'player': 'Player performance'}[prefix]
+    assert locate(items, text=title), f'{report} prepared the wrong report: {pdf_app_text(items)}'
+    view = pdf_control(items, 'pdf-view')
+    if view.attrib.get('enabled') == 'true':
+        tap(resource='pdf-view')
+        destination = wait_for_pdf_viewer(report)
+        capture(f'tennis-native-{prefix}-view.png')
+        run('shell', 'input', 'keyevent', '4')
+        wait_for_pdf_ready(report)
+        print(f'PASS Offline {report} PDF hands off to Android’s {destination} with read access; Back keeps the PDF ready', flush=True)
+    else:
+        app_text = pdf_app_text(items)
+        assert 'A PDF viewer is needed to open this report.' in app_text and 'Share PDF' in app_text, \
+            f'{report} has no viewer but does not explain the Share PDF fallback:\n{app_text}'
+        print(f'PASS Offline {report} PDF explains the unavailable viewer and keeps Share PDF available', flush=True)
+    tap(resource='pdf-share')
+    wait_for_pdf_chooser(report)
+    capture(f'tennis-native-{prefix}-share.png')
+    run('shell', 'input', 'keyevent', '4')
+    wait_for_pdf_ready(report)
+    tap(text='Done')
+    print(f'PASS Offline {report} PDF opens Android’s share chooser; cancellation preserves the prepared PDF', flush=True)
 
 try:
     run('install', '-r', str(Path(args.apk).resolve()), timeout=90)
@@ -171,21 +250,15 @@ try:
         tap(resource='match-pdf-export', scroll=True)
         wait_for(text='Export match PDF')
         tap(resource=f'match-pdf-{variant}')
-        wait_for_pdf_chooser(f'Match {variant}')
-        capture(f'tennis-native-{variant}-share.png')
-        run('shell', 'input', 'keyevent', '4')
+        exercise_prepared_pdf(f'Match {variant}', variant)
         wait_for(resource='match-pdf-export')
-        print(f'PASS Offline {variant} PDF opens Android’s share chooser', flush=True)
     capture('tennis-native-report.png')
 
     tap(resource='back-to-matches')
     tap(text='Player performance', scroll=True)
     tap(text='Export player PDF', scroll=True)
-    wait_for_pdf_chooser('Player performance')
-    capture('tennis-native-player-share.png')
-    run('shell', 'input', 'keyevent', '4')
+    exercise_prepared_pdf('Player performance', 'player')
     wait_for(text='Export player PDF')
-    print('PASS Offline player PDF opens Android’s share chooser', flush=True)
 except Exception:
     try:
         capture('tennis-native-failure.png')

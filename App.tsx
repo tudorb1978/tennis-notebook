@@ -20,7 +20,8 @@ import { emptyDraft } from './src/storage/model.ts';
 import type { MatchDraft, MatchRecord, PlayerProfile, UnstartedMatchRecord } from './src/storage/model.ts';
 import { endingNames, pointEndingLabel, reportCSV, strokeNames } from './src/reports/report.ts';
 import { pointNoteLabels } from './src/reports/pointNotes.ts';
-import { pickBackup, sharePDF, sharePlayerPerformancePDF, shareText } from './src/reports/files.ts';
+import { pickBackup, prepareMatchPDF, preparePlayerPerformancePDF, sharePDF, sharePlayerPerformancePDF, sharePreparedPDF, shareText, viewPreparedPDF } from './src/reports/files.ts';
+import type { PreparedPDF } from './src/reports/files.ts';
 import type { MatchPDFVariant } from './src/reports/pdf.ts';
 import { AppTheme, Button, Card, Eyebrow, Heading, Notice, PlayerBadge, playerBadgeColors, Row, Stack, T, useLayout, useTheme } from './src/ui/kit.tsx';
 import { CorrectionForm, FinishForm, matchDetailsFrom, MatchDetailsForm, MatchNotesEditor, modeOptions, PointEditor, SetupForm, StartMatchForm } from './src/ui/forms.tsx';
@@ -35,6 +36,7 @@ import { MatchReport } from './src/ui/MatchReport.tsx';
 import { PlayerPerformance } from './src/ui/PlayerPerformance.tsx';
 import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
 import { DeletePlayerConfirmation, PlayerSettings, RenamePlayerForm } from './src/ui/PlayerSettings.tsx';
+import { PDFReady } from './src/ui/PDFReady.tsx';
 import { Icon } from './src/ui/Icon.tsx';
 import type { IconName } from './src/ui/Icon.tsx';
 
@@ -51,7 +53,7 @@ const matchPDFOptions: readonly { variant: MatchPDFVariant; title: string; descr
   { variant: 'combined', title: 'Combined report', description: 'The stats summary and full point-by-point report in one PDF.', icon: 'report' },
 ];
 type PointPanel = 'edit-point' | 'point-notes' | 'delete-point';
-type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'export-match-pdf' } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'open-unstarted-match' | 'start-match'; match: UnstartedMatchRecord } | { kind: 'settings' } | { kind: 'rename-player' | 'delete-player'; player: PlayerProfile } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
+type Panel = { kind: 'correct' } | { kind: 'finish' } | { kind: 'recording-mode' } | { kind: 'match-details' } | { kind: 'match-notes' } | { kind: 'export-match-pdf' } | { kind: 'pdf-ready'; pdf: PreparedPDF; title: string; description: string } | { kind: 'pick-event-for-match' } | { kind: 'pick-event-for-report' } | { kind: 'open-paused-match'; match: MatchRecord } | { kind: 'open-unstarted-match' | 'start-match'; match: UnstartedMatchRecord } | { kind: 'settings' } | { kind: 'rename-player' | 'delete-player'; player: PlayerProfile } | { kind: PointPanel; id: string } | { kind: 'import'; text: string; preview: ImportPreview } | null;
 function canRecordMatch(status: MatchScore['status'] | undefined): boolean {
   return status === 'in-progress' || status === 'suspended';
 }
@@ -534,7 +536,13 @@ function Main() {
           : screen === 'player-report' ? <PlayerPerformance
             players={players} matches={matches} playerId={reportPlayerId} event={reportEvent} hasEvents={events.length > 0} busy={busy}
             onPlayer={setReportPlayerId} onChooseEvent={() => { setError(''); setPanel({ kind: 'pick-event-for-report' }); }}
-            onExport={report => void external(() => sharePlayerPerformancePDF(report))}
+            onExport={report => void external(async () => {
+              if (Platform.OS === 'web') await sharePlayerPerformancePDF(report);
+              else {
+                const pdf = await preparePlayerPerformancePDF(report);
+                setPanel({ kind: 'pdf-ready', pdf, title: 'Player performance', description: `${report.name} · ${report.scope}` });
+              }
+            })}
           />
           : record && projection ? tab === 'report'
             ? <MatchReport key={record.id} record={record} projection={projection} scoreboard={scoreboard} busy={busy}
@@ -574,11 +582,12 @@ function Main() {
       {guideOpen && <ScrollView contentContainerStyle={layout.content}>
         <OutcomeGuide onClose={() => setGuideOpen(false)} />
       </ScrollView>}
-      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end', borderBottomWidth: 1, borderColor: c.line, backgroundColor: c.card }}><Button quiet compact icon="close" disabled={busy} onPress={closePanel}>{panel?.kind === 'settings' ? 'Done' : 'Cancel'}</Button></Row>}
+      {!guideOpen && <Row style={{ paddingHorizontal: 12, justifyContent: 'flex-end', borderBottomWidth: 1, borderColor: c.line, backgroundColor: c.card }}><Button quiet compact icon="close" disabled={busy} onPress={closePanel}>{panel?.kind === 'settings' || panel?.kind === 'pdf-ready' ? 'Done' : 'Cancel'}</Button></Row>}
       {panel?.kind === 'point-notes' && selectedEntry && record && !guideOpen ? <PointNotesEditor
         key={selectedEntry.id} input={selectedEntry.input} names={[record.players[0].name, record.players[1].name]}
         busy={busy} errorBlock={errorBlock} onSave={saveSelectedPoint}
-      /> : <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? 'closed'} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>{errorBlock}
+      /> : <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? 'closed'} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>
+      {panel?.kind === 'pdf-ready' || panel?.kind === 'export-match-pdf' ? error ? <Notice error>{error}</Notice> : null : errorBlock}
       {panel?.kind === 'settings' && <Stack>
         <Heading>Settings</Heading>
         {notice ? <Notice>{notice}</Notice> : null}
@@ -640,14 +649,19 @@ function Main() {
       {panel?.kind === 'export-match-pdf' && record && <Stack>
         <View style={{ gap: 4 }}>
           <Heading>Export match PDF</Heading>
-          <T small muted>{Platform.OS === 'web' ? 'Choose a report to download.' : 'Choose a report to save or share.'}</T>
+          <T small muted>{Platform.OS === 'web' ? 'Choose a report to download.' : 'Choose a report, then view or share the PDF.'}</T>
         </View>
         <View style={{ gap: 8 }}>
           {matchPDFOptions.map(({ variant, title, description, icon }) => <Button
             key={variant} testID={`match-pdf-${variant}`} label={`${title}. ${description}`} disabled={busy}
             onPress={() => void external(async () => {
-              await sharePDF(record, variant);
-              setPanel(null);
+              if (Platform.OS === 'web') {
+                await sharePDF(record, variant);
+                setPanel(null);
+              } else {
+                const pdf = await prepareMatchPDF(record, variant);
+                setPanel({ kind: 'pdf-ready', pdf, title, description: `${record.players[0].name} vs ${record.players[1].name}` });
+              }
             })}>
             <Row style={{ flexWrap: 'nowrap', gap: 12 }}>
               <View style={{ padding: 9, borderRadius: 9, backgroundColor: c.soft }}><Icon name={icon} color={c.accent} /></View>
@@ -661,6 +675,11 @@ function Main() {
           <View accessibilityLiveRegion="polite"><T small muted>Preparing PDF…</T></View>
         </Row>}
       </Stack>}
+      {panel?.kind === 'pdf-ready' && <PDFReady title={panel.title} description={panel.description}
+        canView={panel.pdf.canView} busy={busy}
+        onView={() => void external(() => viewPreparedPDF(panel.pdf))}
+        onShare={() => void external(() => sharePreparedPDF(panel.pdf))}
+      />}
       {panel?.kind === 'recording-mode' && record && <Stack>
         <Heading>Recording mode</Heading>
         {modeOptions.map(({ value, label }) => <Button
