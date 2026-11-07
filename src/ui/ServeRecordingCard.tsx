@@ -11,7 +11,6 @@ const titles = { 'first-serve': 'First serve', 'second-serve': 'Second serve', '
 const strokeOptions = [
   { value: 'forehand', label: 'Forehand' },
   { value: 'backhand', label: 'Backhand' },
-  { value: 'other', label: 'Other' },
 ] as const;
 
 export function ServeRecordingCard({ step, names, server, observations, lets, busy, onStepBack, onSkip, onObservations, onLet, onEnding }: {
