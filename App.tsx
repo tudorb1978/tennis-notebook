@@ -365,38 +365,44 @@ function Main() {
     const aceButton = <Button style={layout.cell} disabled={busy} onPress={() => void saveServiceEnding('ace')}>Ace</Button>;
     if (pending) {
       const { winner } = pending;
-      return <Card style={{ padding: 10, gap: 8 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <T small bold style={{ flex: 1 }}>{record.players[winner].name} won the point</T>
-          <Button quiet compact disabled={busy} onPress={() => void selectPointDetail(null)}>Change winner</Button>
-        </Row>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <T bold style={{ fontSize: 19, flexShrink: 1 }}>Last shot of the rally</T>
-          <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
-        </Row>
-        {([0, 1] as const).map(side => {
-          const name = record.players[side].name;
-          const won = side === winner;
-          const endings = won ? ['winner'] as const : ['unforced-error', 'forced-error'] as const;
-          const showServiceEndings = record.mode === 'endings' && pointServer === side;
-          return <React.Fragment key={side}>
-            <PlayerBadge side={side}>{`Played by ${name}`}</PlayerBadge>
-            <View style={layout.two}>
-              {endings.map(ending => <Button
-                key={ending} testID={`ending-${side}-${ending}`} label={`${name} ${endingNames[ending]}`}
-                style={[layout.cell, won && { backgroundColor: c.soft }]} disabled={busy}
-                onPress={() => void selectPointDetail({ actor: side, ending })}
-              >{endingNames[ending]}</Button>)}
-              {showServiceEndings && won && canRecordAce && aceButton}
+      return <Stack>
+        <Card style={{ padding: 10 }}>
+          <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <PlayerBadge side={winner}>{`${record.players[winner].name} won the point`}</PlayerBadge>
             </View>
-            {showServiceEndings && !won && !serveWasIn(obs) &&
-              <Button disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
-          </React.Fragment>;
-        })}
-        <View style={{ marginTop: 12, borderTopWidth: 2, borderTopColor: '#8c8c8c', paddingTop: 12 }}>
-          <Button style={{ backgroundColor: c.bg }} disabled={busy} onPress={() => void savePoint({ type: 'winner-only', winner, observations: obs })}>Not sure how it ended</Button>
-        </View>
-      </Card>;
+            <Button quiet compact disabled={busy} onPress={() => void selectPointDetail(null)}>Change winner</Button>
+          </Row>
+        </Card>
+        <Card style={{ padding: 10, gap: 8 }}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <T bold style={{ fontSize: 19, flexShrink: 1 }}>Last shot of the rally</T>
+            <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
+          </Row>
+          {([0, 1] as const).map(side => {
+            const name = record.players[side].name;
+            const won = side === winner;
+            const endings = won ? ['winner'] as const : ['unforced-error', 'forced-error'] as const;
+            const showServiceEndings = record.mode === 'endings' && pointServer === side;
+            return <React.Fragment key={side}>
+              <PlayerBadge side={side}>{`Played by ${name}`}</PlayerBadge>
+              <View style={layout.two}>
+                {endings.map(ending => <Button
+                  key={ending} testID={`ending-${side}-${ending}`} label={`${name} ${endingNames[ending]}`}
+                  style={[layout.cell, won && { backgroundColor: c.soft }]} disabled={busy}
+                  onPress={() => void selectPointDetail({ actor: side, ending })}
+                >{endingNames[ending]}</Button>)}
+                {showServiceEndings && won && canRecordAce && aceButton}
+              </View>
+              {showServiceEndings && !won && !serveWasIn(obs) &&
+                <Button disabled={busy} onPress={() => void saveServiceEnding('double-fault')}>Double fault</Button>}
+            </React.Fragment>;
+          })}
+          <View style={{ marginTop: 12, borderTopWidth: 2, borderTopColor: '#8c8c8c', paddingTop: 12 }}>
+            <Button style={{ backgroundColor: c.bg }} disabled={busy} onPress={() => void savePoint({ type: 'winner-only', winner, observations: obs })}>Not sure how it ended</Button>
+          </View>
+        </Card>
+      </Stack>;
     }
     const missedReturner = record.mode === 'detailed' && obs.returnResult === 'error' && pointServer !== undefined
       ? other(pointServer)
