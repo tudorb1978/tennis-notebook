@@ -33,6 +33,7 @@ import { LastShotCard, MoreShotOptions } from './src/ui/LastShotCard.tsx';
 import { pointSavedSummary } from './src/ui/pointSaved.ts';
 import type { PointSavedSummary } from './src/ui/pointSaved.ts';
 import { ServeRecordingCard } from './src/ui/ServeRecordingCard.tsx';
+import { ServeReturnSummary } from './src/ui/ServeReturnSummary.tsx';
 import { MatchReport } from './src/ui/MatchReport.tsx';
 import { PlayerPerformance } from './src/ui/PlayerPerformance.tsx';
 import { MatchLibrary } from './src/ui/MatchLibrary.tsx';
@@ -370,9 +371,13 @@ function Main() {
     const obs = record.draft.observations; const pending = record.draft.pending;
     const serviceStep = serveEntryStep(record.draft);
     if (paused) return <Stack><Card><Heading>Match paused</Heading><T muted>{record.timingStartedAt ? 'The match clock is paused. Your score and observations are saved.' : 'Your score and observations are saved.'}</T><Button primary disabled={busy} onPress={() => void addLifecycle({ type: 'resume' })}>Resume recording</Button><Button quiet disabled={busy} onPress={() => setPanel({ kind: 'finish' })}>Finish early</Button></Card>{previousPoint()}</Stack>;
+    const serviceReference = record.mode === 'detailed' && serviceStep === 'point-ending' && pointServer !== undefined
+      ? <ServeReturnSummary observations={obs} names={[record.players[0].name, record.players[1].name]} server={pointServer} lets={record.draft.lets} />
+      : null;
     if (pending) {
       const winner = 'winner' in pending ? pending.winner : pending.ending === 'winner' ? pending.actor : other(pending.actor);
       return <Stack>
+        {serviceReference}
         <Card style={{ padding: 10 }}>
           <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -396,6 +401,7 @@ function Main() {
     const serviceBack = record.mode === 'detailed' ? <Button quiet compact icon="chevron-left" testID="service-back"
       disabled={busy} onPress={() => void backServiceDetail()}>Back</Button> : null;
     return <Stack>
+      {serviceReference}
       {serviceQuestion && pointServer !== undefined && <ServeRecordingCard
         step={serviceStep} names={[record.players[0].name, record.players[1].name]} server={pointServer}
         observations={obs} lets={record.draft.lets} busy={busy}

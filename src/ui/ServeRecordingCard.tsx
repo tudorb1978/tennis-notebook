@@ -5,6 +5,7 @@ import { other } from '../domain/scoring.ts';
 import type { Side } from '../domain/scoring.ts';
 import type { ServeEntryStep } from '../domain/serveEntry.ts';
 import { Button, Card, PlayerBadge, Row, T, playerBadgeColors, useTheme } from './kit.tsx';
+import { ServeReturnSummary } from './ServeReturnSummary.tsx';
 
 const optionRow = { flexDirection: 'row', gap: 7 } as const;
 const titles = { 'first-serve': 'First serve', 'second-serve': 'Second serve', 'return-result': 'Return result', 'return-stroke': 'Return stroke' };
@@ -33,9 +34,6 @@ export function ServeRecordingCard({ step, names, server, observations, lets, bu
   const { backgroundColor, borderColor, ink } = playerBadgeColors(c, actor);
   const optionButton = { flex: fontScale > 1.15 ? undefined : 1, minWidth: 0, paddingHorizontal: 4, minHeight: 52, backgroundColor, borderColor };
   const optionText = { color: ink, textAlign: 'center' as const, fontSize: width < 350 ? 14 : 15 };
-  const serveContext = observations.secondServe === 'in' ? 'Second serve in'
-    : observations.firstServe === 'in' ? 'First serve in'
-    : observations.firstServe === 'fault' ? 'First serve fault · Second serve not recorded' : 'Serve details not recorded';
   const context = {
     'first-serve': '',
     'second-serve': 'First serve fault',
@@ -74,10 +72,7 @@ export function ServeRecordingCard({ step, names, server, observations, lets, bu
   }
 
   return <View style={{ gap: 12 }}>
-    {!serving && <Card style={{ padding: 10, gap: 5, backgroundColor: c.bg }}>
-      <Row><T small bold>Serve</T><PlayerBadge side={server}>{names[server]}</PlayerBadge></Row>
-      <T small muted>{serveContext}</T>
-    </Card>}
+    {!serving && <ServeReturnSummary observations={observations} names={names} server={server} lets={lets} showReturn={false} />}
     <View testID={`service-step-${step}`}>
       <Card style={{ padding: 12, gap: 12 }}>
         <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
