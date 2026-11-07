@@ -304,7 +304,6 @@ function Main() {
   function previousPoint() {
     const last = projection?.pointEntries.at(-1);
     if (!record || !last) return null;
-    const actionStyle = { flex: 1, minWidth: 72, paddingHorizontal: 8 };
     return <View style={recordingSectionDivider}>
       <Card style={{ backgroundColor: c.soft, padding: 12, gap: 8 }}>
         <Row style={{ columnGap: 12, rowGap: 9 }}>
@@ -312,15 +311,18 @@ function Main() {
             <T small bold>Previous point · {record.players[last.point.winner].name}</T>
             <T small muted>{endingNames[last.point.ending]}{last.point.stroke ? ` · ${strokeNames[last.point.stroke]}` : ''}</T>
           </View>
-          <Row style={{ flexGrow: 1, flexBasis: 232, maxWidth: 310, gap: 7, alignItems: 'stretch' }}>
-            <Button quiet compact label="Edit point" style={{ width: 48, paddingHorizontal: 0, alignItems: 'center' }} disabled={busy}
-              onPress={() => openPointPanel('edit-point', last.id)}><Icon name="edit" color={c.sub} size={17} /></Button>
-            <Button compact icon="note" label={hasPointNotes(last.point.observations) ? 'Edit notes' : 'Add notes'} style={actionStyle} disabled={busy}
+          <Row style={{ flexShrink: 0, marginLeft: 'auto', gap: 12, flexWrap: 'nowrap' }}>
+            <Button compact icon="note" label={hasPointNotes(last.point.observations) ? 'Edit notes' : 'Add notes'}
+              style={{ minWidth: 76, paddingHorizontal: 10 }} disabled={busy}
               onPress={() => openPointPanel('point-notes', last.id)}>Notes</Button>
-            <Button quiet compact label="Delete last point" style={{ width: 48, paddingHorizontal: 0, alignItems: 'center' }} disabled={busy || !projection?.canDeleteLastPoint}
-              onPress={() => openPointPanel('delete-point', last.id)}>
-              <Icon name="trash" color={c.sub} size={17} />
-            </Button>
+            <View style={{ flexDirection: 'row', alignItems: 'center', borderLeftWidth: 1, borderColor: c.line, paddingLeft: 8 }}>
+              <Button quiet compact label="Edit point" style={{ width: 48, paddingHorizontal: 0, alignItems: 'center' }} disabled={busy}
+                onPress={() => openPointPanel('edit-point', last.id)}><Icon name="edit" color={c.sub} size={17} /></Button>
+              <Button quiet compact label="Delete last point" style={{ width: 48, paddingHorizontal: 0, alignItems: 'center' }} disabled={busy || !projection?.canDeleteLastPoint}
+                onPress={() => openPointPanel('delete-point', last.id)}>
+                <Icon name="trash" color={c.sub} size={17} />
+              </Button>
+            </View>
           </Row>
         </Row>
         {!projection?.canDeleteLastPoint && <T small muted>Undo the later score correction to delete this point.</T>}
