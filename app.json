@@ -5,7 +5,7 @@
     "icon": "./assets/tennis-notebook.png",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "scheme": "tennistracker",
     "android": {
       "package": "uk.tennistracker.app",

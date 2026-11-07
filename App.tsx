@@ -469,7 +469,7 @@ function Main() {
   />;
 
   return <SafeAreaView style={layout.root}>
-    <StatusBar style="auto" />
+    <StatusBar style="dark" />
     {screen === 'match' && tab === 'record' && projection?.score.status === 'in-progress' && <AwakeWhileRecording />}
     <View style={layout.header}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

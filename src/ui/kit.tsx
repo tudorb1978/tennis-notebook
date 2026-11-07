@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { Side } from '../domain/scoring.ts';
 import { Icon } from './Icon.tsx';
@@ -10,11 +10,10 @@ type ReportPlayerColors = { ink: string; header: string; tint: string };
 type ReportPlayers = readonly [ReportPlayerColors, ReportPlayerColors];
 const light = { ...court, bg: '#f4f5ed', card: '#ffffff', ink: '#192f25', sub: '#506257', line: '#d2dbcf', accent: '#214a38', on: '#ffffff', soft: '#e8f0dd', error: '#a22e28',
   reportPlayers: [{ ink: '#235633', header: '#e1eed9', tint: '#f2f7ef' }, { ink: '#244f81', header: '#dfebf5', tint: '#f0f6fa' }] satisfies ReportPlayers };
-const dark = { ...court, bg: '#151e19', card: '#202b24', ink: '#edf4ed', sub: '#becdc1', line: '#495d50', accent: '#d5e8aa', on: '#172c1c', soft: '#2b4131', error: '#ffb4a8',
-  reportPlayers: [{ ink: '#b9e8bb', header: '#2f4937', tint: '#263b2e' }, { ink: '#c5dfff', header: '#314759', tint: '#273948' }] satisfies ReportPlayers };
 export type Palette = typeof light;
 const Theme = createContext(light);
-export function AppTheme({ children }: { children: React.ReactNode }) { const scheme = useColorScheme(); return <Theme.Provider value={scheme === 'dark' ? dark : light}>{children}</Theme.Provider>; }
+// Keep the courtside palette consistent when the device switches to dark mode.
+export function AppTheme({ children }: { children: React.ReactNode }) { return <Theme.Provider value={light}>{children}</Theme.Provider>; }
 export function useTheme() { return useContext(Theme); }
 export function T({ children, small = false, muted = false, bold = false, style }: { children: React.ReactNode; small?: boolean; muted?: boolean; bold?: boolean; style?: object }) {
   const c = useTheme(); return <Text style={[{ color: muted ? c.sub : c.ink, fontSize: small ? 13 : 16, lineHeight: small ? 19 : 23, fontWeight: bold ? '600' : '400' }, style]}>{children}</Text>;

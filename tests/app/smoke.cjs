@@ -15,6 +15,19 @@ const output=process.env.TEST_OUTPUT||'/tmp';
   let page=await context.newPage();const errors=[];
   const wire=()=>{page.on('pageerror',e=>errors.push(e.message));page.on('console',message=>{if(message.type()==='error'&&/Unexpected text node|must be rendered within a <Text>/i.test(message.text()))errors.push(message.text());});};wire();
   const button=name=>page.getByRole('button',{name,exact:true});
+  const lightAppearance=async()=>{
+    const newMatch=button('Start recording your first match');
+    await expect(newMatch).toHaveCSS('background-color','rgb(33, 74, 56)');
+    const background=await newMatch.evaluate(element=>{
+      for(let ancestor=element.parentElement;ancestor;ancestor=ancestor.parentElement){
+        const {width,height}=ancestor.getBoundingClientRect();
+        const color=getComputedStyle(ancestor).backgroundColor;
+        if(width>=innerWidth&&height>=innerHeight&&color!=='rgba(0, 0, 0, 0)')return color;
+      }
+      return null;
+    });
+    assert.equal(background,'rgb(244, 245, 237)');
+  };
   const idle=async()=>{await expect(page.getByText('Saving…',{exact:true})).toHaveCount(0);};
   const points=async(a,b)=>{
     await expect(page.locator('[data-testid^="score-0-"]').last()).toHaveText(a);
@@ -54,7 +67,12 @@ const output=process.env.TEST_OUTPUT||'/tmp';
   };
   try{
     await page.clock.setFixedTime(new Date('2026-11-05T11:40:00Z'));
+    await page.emulateMedia({colorScheme:'dark'});
     await page.goto(base,{waitUntil:'domcontentloaded'});await expect(page.getByText('Your tennis notebook',{exact:true})).toBeVisible({timeout:60000});
+    await lightAppearance();
+    await page.emulateMedia({colorScheme:'light'});await lightAppearance();
+    await page.emulateMedia({colorScheme:'dark'});await lightAppearance();
+    console.log('PASS Light appearance remains readable with a dark system preference and theme changes');
     await expect(button('New match & event')).toHaveCount(0);
     await button('Start recording your first match').click();
     await page.getByTestId('new-player-name').fill('Alex');await page.getByTestId('opponent-name').fill('Jamie');
