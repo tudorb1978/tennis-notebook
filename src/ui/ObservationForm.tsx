@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import type { ViewStyle } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { emptyObservations } from '../domain/points.ts';
 import type { PointInput, PointObservations } from '../domain/points.ts';
 import type { Side } from '../domain/scoring.ts';
 import { playerNoteGroups, playerNoteLabels, questionableCallSources, rallyLengthLabels, rallyLengthOf } from '../domain/pointNotes.ts';
 import type { PlayerNote } from '../domain/pointNotes.ts';
-import { Button, Card, Choices, Divider, Heading, Row, Stack, T, Toggle, useLayout, useTheme } from './kit.tsx';
+import { Button, Card, Choices, Divider, Heading, playerBadgeColors, Row, Stack, T, Toggle, useLayout, useTheme } from './kit.tsx';
 import { Icon } from './Icon.tsx';
 
 function NoteSectionTitle({ icon, title, detail }: { icon: 'court' | 'note' | 'players'; title: string; detail?: string }) {
@@ -20,6 +20,27 @@ function NoteSectionTitle({ icon, title, detail }: { icon: 'court' | 'note' | 'p
       {detail && <T small muted>{detail}</T>}
     </View>
   </View>;
+}
+
+function PlayerObservationToggle({ side, label, checked, onChange, disabled, style, symbolOnly = false }: {
+  side: Side | null;
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled: boolean;
+  style: StyleProp<ViewStyle>;
+  symbolOnly?: boolean;
+}) {
+  const c = useTheme();
+  const colors = side === null ? { backgroundColor: c.bg, borderColor: c.line, ink: c.ink } : playerBadgeColors(c, side);
+  const colored = !symbolOnly || checked;
+  return <Button toggle selected={checked} label={label} disabled={disabled} onPress={() => onChange(!checked)}
+    style={[style, { borderWidth: 2, borderColor: checked ? colors.ink : colored ? colors.borderColor : c.line,
+      backgroundColor: colored ? colors.backgroundColor : c.card }]}>
+    <T small bold style={{ color: colored ? colors.ink : c.sub, textAlign: 'center', fontSize: symbolOnly ? 17 : 14 }}>
+      {symbolOnly ? checked ? '✓' : '+' : `${checked ? '✓ ' : ''}${label}`}
+    </T>
+  </Button>;
 }
 
 function PointNotesField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
@@ -111,7 +132,7 @@ export function PointNotesEditor({ input, names, busy, errorBlock, onSave }: {
       <View style={{ gap: 6 }}>
         <T small bold>Call made by</T>
         <Row style={{ flexWrap: 'nowrap', alignItems: 'stretch' }}>
-          {([0, 1, 'official'] as const).map(maker => <Toggle key={maker}
+          {([0, 1, 'official'] as const).map(maker => <PlayerObservationToggle key={maker} side={maker === 'official' ? null : maker}
             label={maker === 'official' ? 'Official' : names[maker]} style={playerToggleStyle} disabled={busy}
             checked={callBy === maker} onChange={checked => updateCall({ callBy: checked ? maker : null })} />)}
         </Row>
@@ -140,16 +161,22 @@ export function PointNotesEditor({ input, names, busy, errorBlock, onSave }: {
         {playerNoteGroups.map(({ title, notes }) => <View key={title} style={{ gap: 6, marginTop: 4 }}>
           <View style={{ ...gridRow, borderRadius: 8, paddingVertical: 6, backgroundColor: title === 'Positive' ? c.soft : c.bg }}>
             <T small bold style={{ flex: 1, paddingLeft: 8 }}>{title}</T>
-            {names.map((name, side) => <Text key={side} numberOfLines={1} accessibilityLabel={name} style={{
-              width: gridCell.width, minWidth: gridCell.minWidth, textAlign: 'center', fontSize: 11, fontWeight: '700', color: c.ink,
-            }}>{columnNames[side]}</Text>)}
+            {([0, 1] as const).map(side => {
+              const { backgroundColor, ink } = playerBadgeColors(c, side);
+              return <View key={side} style={{ width: gridCell.width, minWidth: gridCell.minWidth,
+                backgroundColor, borderRadius: 6, paddingVertical: 6, paddingHorizontal: 3 }}>
+                <Text numberOfLines={1} accessibilityLabel={names[side]} style={{
+                  textAlign: 'center', fontSize: 11, lineHeight: 15, fontWeight: '700', color: ink,
+                }}>{columnNames[side]}</Text>
+              </View>;
+            })}
           </View>
           {notes.map(note => <View key={note} style={{ ...gridRow, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.line, paddingBottom: 6 }}>
             <T small style={{ flex: 1, paddingRight: 3 }}>{playerNoteLabels[note]}</T>
             {([0, 1] as const).map(side => {
               const checked = observations.playerNotes?.[side].includes(note) ?? false;
-              return <Toggle key={side} label={checked ? '✓' : '+'} style={gridCell} disabled={busy}
-                accessibilityLabel={`${names[side]} · ${playerNoteLabels[note]}`}
+              return <PlayerObservationToggle key={side} side={side} symbolOnly style={gridCell} disabled={busy}
+                label={`${names[side]} · ${playerNoteLabels[note]}`}
                 checked={checked} onChange={value => setPlayerNote(side, note, value)}
               />;
             })}
