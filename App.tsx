@@ -422,7 +422,7 @@ function Main() {
         <Button quiet disabled={busy} onPress={() => void addLifecycle({ type: 'suspend' })}>Pause</Button>
         <Button quiet disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'finish' }); }}>Finish early</Button>
         <Button quiet testID="recording-mode" style={{ maxWidth: '100%' }} disabled={busy} onPress={() => { setError(''); setPanel({ kind: 'recording-mode' }); }}>
-          {`Recording mode · ${modeOptions.find(option => option.value === record.mode)?.label}`}
+          {`Recording · ${modeOptions.find(option => option.value === record.mode)?.label}`}
         </Button>
       </Row>
     </Stack>;
