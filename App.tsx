@@ -10,6 +10,7 @@ import { hasPointNotes } from './src/domain/pointNotes.ts';
 import type { PointInput, PointObservations, Stroke } from './src/domain/points.ts';
 import { presets } from './src/domain/presets.ts';
 import { other } from './src/domain/scoring.ts';
+import { answerServeEntry, previousServeEntryStep, serveEntryStep, skipServeEntry } from './src/domain/serveEntry.ts';
 import type { LifecycleAction, MatchScore, ScoreCorrection, Side } from './src/domain/scoring.ts';
 import { openRepository } from './src/storage/database.ts';
 import type { ImportPreview, MatchRepository } from './src/storage/repository.ts';
@@ -153,7 +154,15 @@ function Main() {
       mainScroll.current?.scrollTo({ y: 0, animated: false });
     }, true);
   };
-  const saveDraft = (observations: PointObservations) => mutate(m => ({ ...m, draft: { ...m.draft, observations } }));
+  const saveDraft = (observations: PointObservations) => mutate(m => ({
+    ...m, draft: { ...m.draft, ...answerServeEntry(m.draft, observations), pending: null },
+  }), () => mainScroll.current?.scrollTo({ y: 0, animated: false }));
+  const skipServiceDetail = () => mutate(m => ({
+    ...m, draft: { ...m.draft, ...skipServeEntry(m.draft), pending: null },
+  }), () => mainScroll.current?.scrollTo({ y: 0, animated: false }));
+  const backServiceDetail = () => mutate(m => ({
+    ...m, draft: { ...m.draft, serveStep: previousServeEntryStep(m.draft), pending: null },
+  }), () => mainScroll.current?.scrollTo({ y: 0, animated: false }));
   const home = () => external(async () => { await repository.current!.setResumeId(null); setPanel(null); setCurrent(null); setScreen('home'); setNotice(''); });
   const openMatch = async (id: string, choice?: 'resume' | 'report') => {
     let resume = false;
@@ -191,6 +200,10 @@ function Main() {
       if (saving.current) return true;
       if (guideOpen) { setGuideOpen(false); return true; }
       if (panel || strokeMenuOpen) { closePanel(); return true; }
+      if (screen === 'match' && tab === 'record' && record?.mode === 'detailed' && projection?.score.status === 'in-progress') {
+        if (record.draft.pending) { void selectPointDetail(null); return true; }
+        if (serveEntryStep(record.draft) !== 'first-serve') { void backServiceDetail(); return true; }
+      }
       if (screen === 'match' || screen === 'setup' || screen === 'player-report') { void home(); return true; }
       return false;
     });
@@ -312,8 +325,10 @@ function Main() {
   const saveServiceEnding = (type: 'ace' | 'double-fault') => {
     if (pointServer === undefined || !record) return;
     const obs = record.draft.observations;
-    const observations = type === 'ace' && record.mode === 'detailed' && obs.firstServe === 'unknown'
-      ? { ...obs, firstServe: 'in' as const }
+    const step = serveEntryStep(record.draft);
+    const observations: PointObservations = type === 'ace' && record.mode === 'detailed'
+      ? { ...obs, firstServe: step === 'second-serve' ? 'fault' : 'in', secondServe: step === 'second-serve' ? 'in' : 'unknown',
+        returnResult: 'unknown', returnStroke: 'unknown' }
       : obs;
     return savePoint({ type, actor: pointServer, observations });
   };
@@ -353,7 +368,7 @@ function Main() {
     if (!record || !projection || !canRecord) return null;
     const score = projection.score; const paused = score.status === 'suspended';
     const obs = record.draft.observations; const pending = record.draft.pending;
-    const canRecordAce = obs.returnStroke === 'unknown' && obs.returnResult === 'unknown';
+    const serviceStep = serveEntryStep(record.draft);
     if (paused) return <Stack><Card><Heading>Match paused</Heading><T muted>{record.timingStartedAt ? 'The match clock is paused. Your score and observations are saved.' : 'Your score and observations are saved.'}</T><Button primary disabled={busy} onPress={() => void addLifecycle({ type: 'resume' })}>Resume recording</Button><Button quiet disabled={busy} onPress={() => setPanel({ kind: 'finish' })}>Finish early</Button></Card>{previousPoint()}</Stack>;
     if (pending) {
       const winner = 'winner' in pending ? pending.winner : pending.ending === 'winner' ? pending.actor : other(pending.actor);
@@ -377,16 +392,24 @@ function Main() {
     const missedReturner = record.mode === 'detailed' && obs.returnResult === 'error' && pointServer !== undefined
       ? other(pointServer)
       : null;
+    const serviceQuestion = record.mode === 'detailed' && serviceStep !== 'point-ending';
+    const serviceBack = record.mode === 'detailed' ? <Button quiet compact icon="chevron-left" testID="service-back"
+      disabled={busy} onPress={() => void backServiceDetail()}>Back</Button> : null;
     return <Stack>
-      {record.mode === 'detailed' && <ServeRecordingCard
-        observations={obs} lets={record.draft.lets} busy={busy} canRecordAce={canRecordAce}
-        onObservations={saveDraft} onEnding={saveServiceEnding}
+      {serviceQuestion && pointServer !== undefined && <ServeRecordingCard
+        step={serviceStep} names={[record.players[0].name, record.players[1].name]} server={pointServer}
+        observations={obs} lets={record.draft.lets} busy={busy}
+        onObservations={saveDraft} onEnding={saveServiceEnding} onSkip={() => void skipServiceDetail()}
+        onStepBack={serviceStep === 'first-serve' ? undefined : () => void backServiceDetail()}
         onLet={() => void mutate(m => ({ ...m, draft: { ...m.draft, lets: m.draft.lets + 1 } }))}
       />}
-      {missedReturner !== null ? <Card style={{ padding: 12, gap: 8 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
+      {!serviceQuestion && (missedReturner !== null ? <Card style={{ padding: 12, gap: 8 }}>
+        <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
           <PlayerBadge side={missedReturner} style={{ alignSelf: 'center' }}>{`${record.players[missedReturner].name} missed the return`}</PlayerBadge>
-          <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
+          <Row style={{ gap: 3, flexWrap: 'nowrap' }}>
+            <OutcomeHelpButton onPress={() => setGuideOpen(true)} disabled={busy} />
+            {serviceBack}
+          </Row>
         </Row>
         <View style={layout.two}>
           {(['forced-error', 'unforced-error'] as const).map(ending => <Button
@@ -400,9 +423,12 @@ function Main() {
         <Button compact label="Not sure which error" style={{ backgroundColor: c.bg }} disabled={busy}
           onPress={() => void savePoint({ type: 'winner-only', winner: other(missedReturner), observations: obs })}>Not sure</Button>
       </Card> : <Card style={{ padding: 10, gap: 8 }}>
-        <Row>
-          <Icon name="record" color={c.accent} size={19} />
-          <T bold style={{ fontSize: 19, flexShrink: 1 }}>Who won the point?</T>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Row style={{ flex: 1, flexWrap: 'nowrap' }}>
+            <Icon name="record" color={c.accent} size={19} />
+            <T bold style={{ fontSize: 19, flex: 1, minWidth: 0 }}>Who won the point?</T>
+          </Row>
+          {serviceBack}
         </Row>
         <View style={layout.two}>
           {([0, 1] as const).map(side => {
@@ -416,7 +442,7 @@ function Main() {
             ><T bold style={{ color: ink, fontSize: 15, textAlign: 'center' }}>{name}</T></Button>;
           })}
         </View>
-      </Card>}
+      </Card>)}
       {previousPoint()}
       <Row style={{ ...recordingSectionDivider, justifyContent: 'space-between', gap: 0 }}>
         <Button quiet disabled={busy} onPress={() => void addLifecycle({ type: 'suspend' })}>Pause</Button>

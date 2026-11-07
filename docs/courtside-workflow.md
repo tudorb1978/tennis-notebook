@@ -30,7 +30,9 @@ Each section has a racket button for a modal with Overhead, Other and I'm not su
 
 Selecting a point winner or opening the racket menu leaves the score unchanged. Close or Android Back dismisses the menu without saving, retaining the winner selection. An unfinished selection survives an app restart. Change winner returns to the player choice and preserves any serve observations for the current point.
 
-In detailed mode, serve entry adapts to the current server. A first-serve fault exposes a second-serve entry; a double fault finishes the point without asking for a rally ending. Aces and other service outcomes must avoid duplicate entry. A let follows the configured rule and does not automatically become a fault or a completed point.
+In Score, serve & last shot mode, show one question at a time: first serve, second serve after a fault, return result, then return stroke if the return was in or missed. Serve choices use the server's colour and return choices use the receiver's colour. During return entry, show a compact completed Serve card above the active Return card. A double fault or ace finishes the point immediately. A let keeps the current serve question open without recording a point.
+
+I'm not sure / didn't see on either serve advances to the return result while keeping the unobserved serve unknown. An unknown return result skips its stroke question and proceeds to the point winner. After a missed return's stroke, ask only whether the return was a forced or unforced error, with an unknown-error option. Back revisits the preceding question without saving a point; answering an earlier question again clears its dependent observations. Save the current question alongside observations so explicit unknown answers survive a restart.
 
 Support both entering serve details as play happens and filling them in after the rally. Save partial observations so an interruption does not erase work. Keep the next point ready after completion and provide clear save feedback.
 

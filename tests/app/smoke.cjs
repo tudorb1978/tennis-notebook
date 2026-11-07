@@ -49,13 +49,47 @@ const output=process.env.TEST_OUTPUT||'/tmp';
   };
   const choose=async(label,value)=>{await page.getByText(label,{exact:true}).locator('..').getByRole('button',{name:value,exact:true}).click();};
   const pickWinner=side=>page.getByTestId(`point-winner-${side}`).click();
+  const skipServiceDetails=async()=>{
+    for(let attempts=0;attempts<3&&await page.getByTestId('skip-service-detail').count();attempts++){
+      const current=await page.locator('[data-testid^="service-step-"]').getAttribute('data-testid');
+      await page.getByTestId('skip-service-detail').click();
+      await expect(page.getByTestId(current)).toHaveCount(0);await idle();
+    }
+    await expect(page.getByTestId('skip-service-detail')).toHaveCount(0);
+  };
+  const serviceQuestion=async(step,missed=false)=>{
+    for(const name of ['first-serve','second-serve','return-result','return-stroke']){
+      const question=page.getByTestId(`service-step-${name}`);
+      if(name===step)await expect(question).toBeVisible();else await expect(question).toHaveCount(0);
+    }
+    await expect(page.getByTestId('service-choices')).toHaveCount(step==='point-ending'?0:1);
+    await expect(page.getByTestId('skip-service-detail')).toHaveCount(step==='point-ending'?0:1);
+    for(const side of [0,1]){
+      const option=page.getByTestId(`point-winner-${side}`);
+      if(step==='point-ending'&&!missed)await expect(option).toBeVisible();else await expect(option).toHaveCount(0);
+    }
+    if(step!=='point-ending'){
+      await expect(button('Not sure which error')).toHaveCount(0);
+      await expect(page.locator('[data-testid^="ending-section-"]')).toHaveCount(0);
+    }
+  };
+  const captureService=async(step,missed=false)=>{
+    const viewport=page.viewportSize();
+    for(const width of [390,320]){
+      await page.setViewportSize({width,height:915});await serviceQuestion(step,missed);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      await page.screenshot({path:path.join(output,`tennis-guided-${missed?'missed-return':step}-${width}.png`),fullPage:true});
+    }
+    await page.setViewportSize(viewport);
+  };
   const moreHeading=()=>page.getByRole('heading',{name:'More shot types',exact:true});
   const moreShots=async(actor,type)=>{await page.getByTestId(`more-shots-${actor}-${type}`).click();await expect(moreHeading()).toBeVisible();};
-  const openMore=async(actor,type)=>{await pickWinner(type==='winner'?actor:1-actor);await moreShots(actor,type);};
+  const openMore=async(actor,type)=>{await skipServiceDetails();await pickWinner(type==='winner'?actor:1-actor);await moreShots(actor,type);};
   const closeMore=async()=>{await button('Close').click();await expect(moreHeading()).toHaveCount(0);await idle();await noPointSaved();};
   const directShot=async(actor,type,shot)=>{await page.getByTestId(`shot-${actor}-${type}-${shot}`).click();await expect(moreHeading()).toHaveCount(0);await idle();};
   const rareShot=async(value)=>{await page.getByTestId(`stroke-${value}`).click();await expect(moreHeading()).toHaveCount(0);await idle();};
   const record=async(actor,type,shot)=>{
+    await skipServiceDetails();
     await pickWinner(type==='winner'?actor:1-actor);
     if(['forehand','backhand','volley'].includes(shot))await directShot(actor,type,shot);
     else{await moreShots(actor,type);await rareShot(shot);}
@@ -318,24 +352,67 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await button('Cancel').click();await expect(button('Score, serve & last shot')).toHaveCount(0);
     await recordingMode.click();await button('Score, serve & last shot').click();await idle();
     await expect(recordingMode).toHaveText('Recording · Score, serve & last shot');
-    await expect(page.getByTestId('first-in')).toBeInViewport();await expect(button('Let')).toBeVisible();
+    await serviceQuestion('first-serve');await expect(page.getByTestId('service-let')).toBeVisible();
+    await captureService('first-serve');
+    await expect(page.getByTestId('first-in')).toHaveCSS('background-color','rgb(224, 242, 174)');
+    await otherServer.click();await serviceQuestion('first-serve');
+    await expect(page.getByTestId('first-in')).toHaveCSS('background-color','rgb(223, 235, 245)');
+    await page.getByTestId('first-fault').click();await serviceQuestion('second-serve');
+    await expect(page.getByTestId('second-in')).toHaveCSS('background-color','rgb(223, 235, 245)');
+    await otherServer.click();await serviceQuestion('second-serve');
+    await expect(page.getByTestId('second-in')).toHaveCSS('background-color','rgb(224, 242, 174)');
+    await page.getByTestId('service-back').click();await serviceQuestion('first-serve');
+    await page.getByTestId('skip-service-detail').click();await serviceQuestion('return-result');
+    await expect(page.getByTestId('return-result-in')).toHaveCSS('background-color','rgb(223, 235, 245)');
+    await page.reload({waitUntil:'domcontentloaded'});await serviceQuestion('return-result');await noPointSaved();
+    await page.getByTestId('skip-service-detail').click();await serviceQuestion('point-ending');await points('30','15');
     await openMore(0,'winner');await rareShot('serve');await points('40','15');
     await expect(previousSummary(0).getByText('Ace · Serve',{exact:true})).toBeVisible();
+    const observedChoice=(label,value)=>page.getByText('Serve and return',{exact:true}).locator('..')
+      .getByText(label,{exact:true}).locator('..').getByRole('button',{name:value,exact:true});
     await button('Edit point').click();
-    await expect(page.getByText('First serve',{exact:true}).locator('..').getByRole('button',{name:'Not sure',exact:true})).toHaveAttribute('aria-pressed','true');
+    for(const label of ['First serve','Return result','Return stroke'])await expect(observedChoice(label,'Not sure')).toHaveAttribute('aria-pressed','true');
     await button('Cancel').click();await undoTemporaryPoint();
-    await page.getByTestId('first-fault').click();await expect(button('Let')).toBeVisible();
-    await page.getByTestId('second-in').click();await expect(button('Let')).toHaveCount(0);
-    await noPointSaved();
-    await expect(page.getByTestId('point-winner-1')).toBeInViewport();
+
+    await page.getByTestId('first-fault').click();await serviceQuestion('second-serve');
+    await page.getByTestId('skip-service-detail').click();await serviceQuestion('return-result');
+    await page.getByTestId('skip-service-detail').click();await serviceQuestion('point-ending');
+    await pickWinner(0);await button("I'm not sure how it ended").click();await points('40','15');
+    await button('Edit point').click();
+    await expect(observedChoice('First serve','Fault')).toHaveAttribute('aria-pressed','true');
+    for(const label of ['Second serve','Return result','Return stroke'])await expect(observedChoice(label,'Not sure')).toHaveAttribute('aria-pressed','true');
+    await button('Cancel').click();await undoTemporaryPoint();
+
+    // Back preserves the observation; answering an earlier question again clears stale later details.
+    await page.getByTestId('first-fault').click();await serviceQuestion('second-serve');
+    await page.getByTestId('second-in').click();await serviceQuestion('return-result');
+    await captureService('return-result');
+    await expect(page.getByTestId('service-let')).toHaveCount(0);
+    await page.getByTestId('return-result-in').click();await serviceQuestion('return-stroke');
+    await captureService('return-stroke');
+    await expect(page.getByTestId('return-stroke-backhand')).toHaveCSS('background-color','rgb(223, 235, 245)');
+    await page.getByTestId('return-stroke-backhand').click();await serviceQuestion('point-ending');
+    await captureService('point-ending');
+    await page.getByTestId('service-back').click();await serviceQuestion('return-stroke');
+    await page.getByTestId('service-back').click();await serviceQuestion('return-result');
+    await page.getByTestId('skip-service-detail').click();await serviceQuestion('point-ending');
+    await page.getByTestId('service-back').click();await serviceQuestion('return-result');
+    await page.getByTestId('skip-service-detail').click();await serviceQuestion('point-ending');
+    await pickWinner(0);await button("I'm not sure how it ended").click();await points('40','15');
+    await button('Edit point').click();
+    await expect(observedChoice('First serve','Fault')).toHaveAttribute('aria-pressed','true');
+    await expect(observedChoice('Second serve','In')).toHaveAttribute('aria-pressed','true');
+    for(const label of ['Return result','Return stroke'])await expect(observedChoice(label,'Not sure')).toHaveAttribute('aria-pressed','true');
+    await button('Cancel').click();await undoTemporaryPoint();
+
+    await page.getByTestId('first-fault').click();await serviceQuestion('second-serve');
+    await page.getByTestId('second-in').click();await serviceQuestion('return-result');
+    await page.getByTestId('return-result-in').click();await serviceQuestion('return-stroke');
+    await page.reload({waitUntil:'domcontentloaded'});await serviceQuestion('return-stroke');await points('30','15');await noPointSaved();
+    await page.getByTestId('return-stroke-backhand').click();await serviceQuestion('point-ending');
     await openMore(0,'unforced-error');await expect(page.getByTestId('stroke-serve')).toHaveCount(0);await points('30','15');await closeMore();
     await expect(page.getByText('Jamie won the point',{exact:true})).toBeVisible();await button('Change winner').click();
-    await expect(page.getByText('Return stroke',{exact:true})).toHaveCount(0);
-    await choose('Return result','In');await choose('Return stroke','Backhand');
-    await choose('Return result','Not sure');await expect(page.getByText('Return stroke',{exact:true})).toHaveCount(0);
-    await choose('Return result','In');
-    await expect(page.getByText('Return stroke',{exact:true}).locator('..').getByRole('button',{name:'Backhand',exact:true})).toHaveAttribute('aria-pressed','false');
-    await choose('Return stroke','Backhand');await record(1,'unforced-error','backhand');await points('40','15');
+    await record(1,'unforced-error','backhand');await points('40','15');
     await button('Edit point').click();await choose('Player playing the final shot','Alex');
     const editStroke=page.getByText('Stroke',{exact:true}).locator('..');
     await expect(editStroke.getByRole('button',{name:'Serve',exact:true})).toHaveCount(0);
@@ -345,44 +422,78 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await openMore(0,'winner');await page.reload({waitUntil:'domcontentloaded'});await expect(moreHeading()).toBeVisible();await points('40','15');await closeMore();await directShot(0,'winner','forehand');await points('0','0');
     await pointSaved('1–0','Game to Alex · Set 1',0,'Next game');
     await page.screenshot({path:path.join(output,'tennis-android-recording.png'),fullPage:true});
-    console.log('PASS Serve observations and an unfinished point survive closing/reopening the app');
+    console.log('PASS Guided serve/return entry gates each question, preserves skipped drafts, clears rerecorded dependents and follows actual player colours');
 
-    const serveButton=(stage,name)=>page.getByText(stage,{exact:true}).locator('../../..').getByRole('button',{name,exact:true});
-    await expect(button('Ace')).toHaveCount(1);await expect(button('Double fault')).toHaveCount(0);
+    await serviceQuestion('first-serve');await expect(page.getByTestId('serve-ace')).toBeVisible();
+    await expect(page.getByTestId('second-double-fault')).toHaveCount(0);
     await page.emulateMedia({reducedMotion:'reduce'});
-    await serveButton('First serve','Ace').click();await points('0','15');
+    await page.getByTestId('serve-ace').click();await points('0','15');
     await pointSaved('0–15','Set 1 · Games 1–0',1);
     await expect(page.getByTestId('point-saved-confirmation')).toHaveCount(0,{timeout:3000});
     await page.emulateMedia({reducedMotion:'no-preference'});
-    await page.getByTestId('first-fault').click();await expect(button('Ace')).toHaveCount(1);await expect(button('Double fault')).toHaveCount(1);
-    await serveButton('Second serve','Ace').click();await points('0','30');
-    await page.getByTestId('first-fault').click();await serveButton('Second serve','Double fault').click();await points('15','30');
+    await page.getByTestId('first-fault').click();await serviceQuestion('second-serve');
+    await expect(page.getByTestId('serve-ace')).toBeVisible();await expect(page.getByTestId('second-double-fault')).toBeVisible();
+    await page.getByTestId('serve-ace').click();await points('0','30');
+    await page.getByTestId('first-fault').click();await serviceQuestion('second-serve');
+    await page.getByTestId('second-double-fault').click();await points('15','30');
     await pointSaved('15–30','Set 1 · Games 1–0',0);
-    await page.getByTestId('first-in').click();await expect(button('Double fault')).toHaveCount(0);await expect(button('Let')).toHaveCount(0);
+    await page.getByTestId('first-in').click();await serviceQuestion('return-result');
+    await expect(page.getByTestId('second-double-fault')).toHaveCount(0);await expect(page.getByTestId('service-let')).toHaveCount(0);
+    await page.getByTestId('skip-service-detail').click();await serviceQuestion('point-ending');
     await openMore(1,'forced-error');await expect(page.getByTestId('stroke-serve')).toHaveCount(0);await points('15','30');await closeMore();
     await button('Change winner').click();
     await openMore(1,'winner');await expect(page.getByTestId('stroke-serve')).toHaveCount(0);await closeMore();
     await button('Change winner').click();
-    await serveButton('Serve recorded','Ace').click();await points('15','40');
+    await page.getByTestId('service-back').click();await serviceQuestion('return-result');
+    await page.getByTestId('service-back').click();await serviceQuestion('first-serve');
+    await page.getByTestId('first-fault').click();await serviceQuestion('second-serve');
+    await page.getByTestId('second-in').click();await serviceQuestion('return-result');
+    await page.getByTestId('return-result-in').click();await serviceQuestion('return-stroke');
+    await page.getByTestId('return-stroke-backhand').click();await serviceQuestion('point-ending');
+    for(const step of ['return-stroke','return-result','second-serve','first-serve']){
+      await page.getByTestId('service-back').click();await serviceQuestion(step);
+    }
+    await page.getByTestId('serve-ace').click();await points('15','40');
+    await button('Edit point').click();
+    await expect(observedChoice('First serve','In')).toHaveAttribute('aria-pressed','true');
+    await expect(page.getByText('Serve and return',{exact:true}).locator('..').getByText('Second serve',{exact:true})).toHaveCount(0);
+    for(const label of ['Return result','Return stroke'])await expect(observedChoice(label,'Not sure')).toHaveAttribute('aria-pressed','true');
+    await button('Cancel').click();
     console.log('PASS Detailed mode records aces and double faults, and an in serve cannot end as a serve error');
 
     const generalEnding=page.getByText('Who won the point?',{exact:true});
-    await page.getByTestId('first-in').click();await choose('Return result','Missed');await choose('Return stroke','Backhand');
-    await expect(generalEnding).toHaveCount(0);await expect(page.getByText('Alex missed the return',{exact:true})).toBeVisible();
+    await page.getByTestId('first-in').click();await serviceQuestion('return-result');
+    await page.getByTestId('return-result-error').click();await serviceQuestion('return-stroke');
+    await expect(page.getByText('Alex missed the return',{exact:true})).toHaveCount(0);
+    await page.getByTestId('return-stroke-backhand').click();await serviceQuestion('point-ending',true);
+    await captureService('point-ending',true);
+    await expect(page.getByText('Alex missed the return',{exact:true})).toBeVisible();
     await button('Definitions').click();await expect(page.getByRole('heading',{name:'Outcome definitions',exact:true})).toBeVisible();
     await button('Done').click();await expect(page.getByText('Alex missed the return',{exact:true})).toBeVisible();
     await expect(button("I'm not sure how it ended")).toHaveCount(0);
-    await choose('Return result','In');await expect(generalEnding).toBeVisible();
-    await choose('Return result','Missed');await button('Forced error').click();await points('0','0');
-    await otherServer.click();await page.getByTestId('first-in').click();await choose('Return result','Missed');
+    await page.getByTestId('service-back').click();await serviceQuestion('return-stroke');
+    await page.getByTestId('service-back').click();await serviceQuestion('return-result');
+    await page.getByTestId('return-result-in').click();await serviceQuestion('return-stroke');
+    await page.getByTestId('skip-service-detail').click();await serviceQuestion('point-ending');await expect(generalEnding).toBeVisible();
+    await page.getByTestId('service-back').click();await serviceQuestion('return-stroke');
+    await page.getByTestId('service-back').click();await serviceQuestion('return-result');
+    await page.getByTestId('return-result-error').click();await serviceQuestion('return-stroke');
+    await page.getByTestId('return-stroke-backhand').click();await serviceQuestion('point-ending',true);
+    await button('Forced error').click();await points('0','0');
+    await otherServer.click();await page.getByTestId('first-in').click();await serviceQuestion('return-result');
+    await page.getByTestId('return-result-error').click();await serviceQuestion('return-stroke');
+    await page.getByTestId('skip-service-detail').click();await serviceQuestion('point-ending',true);
     await expect(page.getByText('Alex missed the return',{exact:true})).toBeVisible();
-    await page.reload({waitUntil:'domcontentloaded'});await expect(page.getByText('Alex missed the return',{exact:true})).toBeVisible();
+    await page.reload({waitUntil:'domcontentloaded'});await serviceQuestion('point-ending',true);
+    await expect(page.getByText('Alex missed the return',{exact:true})).toBeVisible();
     await expect(generalEnding).toHaveCount(0);await button('Unforced error').click();await points('0','15');
-    await otherServer.click();await page.getByTestId('first-in').click();await choose('Return result','Missed');
-    await choose('Return stroke','Forehand');await button('Not sure which error').click();await points('0','30');
+    await otherServer.click();await page.getByTestId('first-in').click();await serviceQuestion('return-result');
+    await page.getByTestId('return-result-error').click();await serviceQuestion('return-stroke');
+    await page.getByTestId('return-stroke-forehand').click();await serviceQuestion('point-ending',true);
+    await button('Not sure which error').click();await points('0','30');
     await expect(page.getByText('Previous point · Jamie',{exact:true}).locator('..').getByText('Outcome only',{exact:true})).toBeVisible();
     await page.getByTestId('undo').click();await points('0','15');
-    console.log('PASS Missed returns award the point to the actual server and allow an unclassified error');
+    console.log('PASS Missed-return classification follows stroke entry, restores explicit unknown answers and awards the actual server');
 
     await button('Add notes').click();
     await expect(button('Not noted')).toHaveCount(0);

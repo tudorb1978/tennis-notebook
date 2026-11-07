@@ -34,11 +34,12 @@ test('SQLite stores and recovers a pending stroke, serve draft, and point after 
   try {
     let repo = new MatchRepository(adapter(db)); await repo.initialize();
     let match = await repo.createMatch(fixture(), player);
-    match = await repo.saveMatch({ ...match, draft: { observations: { ...match.draft.observations, firstServe: 'fault', secondServe: 'in' }, pending: { actor: 1, ending: 'unforced-error' }, lets: 1 } }, match.revision);
+    match = await repo.saveMatch({ ...match, draft: { observations: { ...match.draft.observations, firstServe: 'fault', secondServe: 'in' }, pending: { actor: 1, ending: 'unforced-error' }, lets: 1, serveStep: 'point-ending' } }, match.revision);
     db.close(); db = new DatabaseSync(path); repo = new MatchRepository(adapter(db)); await repo.initialize();
     const restored = (await repo.getMatch(match.id))!;
     assert(restored.firstServer !== null);
     assert.deepEqual(restored.draft.pending, { actor: 1, ending: 'unforced-error' });
+    assert.equal(restored.draft.serveStep, 'point-ending');
     assert.equal(restored.draft.observations.secondServe, 'in');
     assert.equal(await repo.resumeId(), match.id);
     const events = appendEvent(restored.format, restored.firstServer, restored.events, { id: 'point-1', type: 'point', input: { type: 'ending', actor: 1, ending: 'unforced-error', stroke: 'backhand', observations: restored.draft.observations } });
@@ -48,7 +49,73 @@ test('SQLite stores and recovers a pending stroke, serve draft, and point after 
     assert(saved.firstServer !== null);
     assert.deepEqual(replayMatch(saved.format, saved.firstServer, saved.events).score.current!.points, [1, 0]);
     assert.equal(saved.draft.pending, null);
+    assert.equal(saved.draft.serveStep, undefined);
+    assert.deepEqual(saved.draft, emptyDraft());
   } finally { db.close(); await rm(folder, { recursive: true, force: true }); }
+});
+
+test('Guided serve steps survive reopening and backup restoration without inventing observations', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'tennis-serve-steps-')); const path = join(folder, 'matches.db');
+  let db = new DatabaseSync(path);
+  try {
+    let repo = new MatchRepository(adapter(db)); await repo.initialize();
+    const expected: MatchRecord[] = [];
+    for (const serveStep of ['first-serve', 'second-serve', 'return-result', 'return-stroke', 'point-ending'] as const) {
+      const match = await repo.createMatch(fixture(serveStep), expected.length === 0 ? player : null);
+      expected.push(await repo.saveMatch({ ...match, mode: 'detailed', draft: {
+        ...emptyDraft(), serveStep, actualServer: 1,
+        observations: serveStep === 'second-serve' ? { ...emptyDraft().observations, firstServe: 'fault' } : emptyDraft().observations,
+        pending: serveStep === 'point-ending' ? { winner: 0 } : null,
+      } }, match.revision));
+    }
+    db.close(); db = new DatabaseSync(path); repo = new MatchRepository(adapter(db)); await repo.initialize();
+    for (const match of expected) {
+      const saved = (await repo.getMatch(match.id))!;
+      assert.deepEqual(saved, match);
+      assert.equal(saved.events.length, 0);
+      assert(saved.firstServer !== null);
+      assert.deepEqual(replayMatch(saved.format, saved.firstServer, saved.events).score.current!.points, [0, 0]);
+    }
+    for (const id of ['return-result', 'point-ending']) {
+      assert.deepEqual((await repo.getMatch(id))!.draft.observations, emptyDraft().observations);
+    }
+    let modeChanged = (await repo.getMatch('point-ending'))!;
+    const draft = modeChanged.draft;
+    modeChanged = await repo.saveMatch({ ...modeChanged, mode: 'endings' }, modeChanged.revision);
+    modeChanged = await repo.saveMatch({ ...modeChanged, mode: 'detailed' }, modeChanged.revision);
+    assert.deepEqual(modeChanged.draft, draft);
+
+    const backupText = await repo.backup();
+    const backup = parseBackup(backupText);
+    for (const match of expected) assert.deepEqual(backup.matches.find(saved => saved.id === match.id)!.draft, match.draft);
+    const imported = await memory();
+    try {
+      await imported.repo.importNew(backupText);
+      for (const match of expected) assert.deepEqual((await imported.repo.getMatch(match.id))!.draft, match.draft);
+    } finally { imported.db.close(); }
+  } finally { db.close(); await rm(folder, { recursive: true, force: true }); }
+});
+
+test('Guided serve step validation rejects malformed values and accepts older drafts without a step', async () => {
+  const { db, repo } = await memory();
+  try {
+    for (const serveStep of ['not-a-step', null, 3]) {
+      const invalid = { ...fixture(), draft: { ...emptyDraft(), serveStep } } as unknown as MatchRecord;
+      await assert.rejects(repo.createMatch(invalid, player));
+      await assert.rejects(repo.importNew(JSON.stringify({
+        schemaVersion: 1, application: 'tennis-tracker', exportedAt: player.createdAt, players: [player], matches: [invalid],
+      })));
+      assert.deepEqual(await repo.players(), []);
+      assert.deepEqual(await repo.matches(), []);
+    }
+    const legacy = await repo.createMatch(fixture(), player);
+    assert.equal(legacy.draft.serveStep, undefined);
+    assert.equal(parseBackup(await repo.backup()).matches[0]!.draft.serveStep, undefined);
+    const invalidUpdate = { ...legacy, draft: { ...legacy.draft, serveStep: null } } as unknown as MatchRecord;
+    await assert.rejects(repo.saveMatch(invalidUpdate, legacy.revision));
+    assert.deepEqual(await repo.getMatch(legacy.id), legacy);
+    assert.equal(emptyDraft().serveStep, undefined);
+  } finally { db.close(); }
 });
 
 test('A saved match has no server or clock until a successful start', async () => {

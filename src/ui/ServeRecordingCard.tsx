@@ -1,89 +1,107 @@
 import React from 'react';
 import { View, useWindowDimensions } from 'react-native';
 import type { PointObservations } from '../domain/points.ts';
-import { Button, Card, Divider, Eyebrow, Row, T, useTheme } from './kit.tsx';
+import { other } from '../domain/scoring.ts';
+import type { Side } from '../domain/scoring.ts';
+import type { ServeEntryStep } from '../domain/serveEntry.ts';
+import { Button, Card, PlayerBadge, Row, T, playerBadgeColors, useTheme } from './kit.tsx';
 
 const optionRow = { flexDirection: 'row', gap: 7 } as const;
-const optionButton = { flex: 1, minWidth: 0, paddingHorizontal: 6 };
-const resultOptions = [
-  { value: 'in', label: 'In' },
-  { value: 'error', label: 'Missed' },
-  { value: 'unknown', label: 'Not sure' },
-] as const;
+const titles = { 'first-serve': 'First serve', 'second-serve': 'Second serve', 'return-result': 'Return result', 'return-stroke': 'Return stroke' };
 const strokeOptions = [
   { value: 'forehand', label: 'Forehand' },
   { value: 'backhand', label: 'Backhand' },
   { value: 'other', label: 'Other' },
-  { value: 'unknown', label: 'Not sure' },
 ] as const;
 
-function ReturnChoices<T extends string>({ label, value, options, onChange, busy, split = false }: {
-  label: string;
-  value: T;
-  options: readonly { value: T; label: string }[];
-  onChange: (value: T) => void;
-  busy: boolean;
-  split?: boolean;
-}) {
-  const buttons = options.map(option => <Button key={option.value} compact toggle selected={value === option.value}
-    style={optionButton} disabled={busy} onPress={() => onChange(option.value)}>{option.label}</Button>);
-  return <View style={{ gap: 6 }}>
-    <T small bold>{label}</T>
-    <View style={optionRow}>{split ? buttons.slice(0, 2) : buttons}</View>
-    {split && <View style={optionRow}>{buttons.slice(2)}</View>}
-  </View>;
-}
-
-export function ServeRecordingCard({ observations, lets, busy, canRecordAce, onObservations, onLet, onEnding }: {
+export function ServeRecordingCard({ step, names, server, observations, lets, busy, onStepBack, onSkip, onObservations, onLet, onEnding }: {
+  step: Exclude<ServeEntryStep, 'point-ending'>;
+  names: readonly [string, string];
+  server: Side;
   observations: PointObservations;
   lets: number;
   busy: boolean;
-  canRecordAce: boolean;
+  onStepBack?: (() => void) | undefined;
+  onSkip: () => void;
   onObservations: (observations: PointObservations) => void;
   onLet: () => void;
   onEnding: (ending: 'ace' | 'double-fault') => void;
 }) {
   const c = useTheme();
   const { width, fontScale } = useWindowDimensions();
-  const firstServe = observations.firstServe === 'unknown';
-  const secondServe = observations.firstServe === 'fault' && observations.secondServe === 'unknown';
-  const awaitingServe = firstServe || secondServe;
-  const serveLabel = firstServe ? 'First serve' : secondServe ? 'Second serve'
-    : observations.secondServe === 'in' ? 'Second serve in' : 'First serve in';
-  const utilityButton = { paddingHorizontal: 8, backgroundColor: c.bg };
+  const serving = step === 'first-serve' || step === 'second-serve';
+  const actor = serving ? server : other(server);
+  const { backgroundColor, borderColor, ink } = playerBadgeColors(c, actor);
+  const optionButton = { flex: fontScale > 1.15 ? undefined : 1, minWidth: 0, paddingHorizontal: 4, minHeight: 52, backgroundColor, borderColor };
+  const optionText = { color: ink, textAlign: 'center' as const, fontSize: width < 350 ? 14 : 15 };
+  const serveContext = observations.secondServe === 'in' ? 'Second serve in'
+    : observations.firstServe === 'in' ? 'First serve in'
+    : observations.firstServe === 'fault' ? 'First serve fault · Second serve not recorded' : 'Serve details not recorded';
+  const context = {
+    'first-serve': '',
+    'second-serve': 'First serve fault',
+    'return-result': '',
+    'return-stroke': observations.returnResult === 'error' ? 'Return missed' : 'Return in',
+  }[step];
+  const clearedReturn = { returnResult: 'unknown', returnStroke: 'unknown' } as const;
+  let choices: React.ReactNode[];
+  if (serving) {
+    const first = step === 'first-serve';
+    choices = [
+      <Button key="in" compact style={optionButton} testID={first ? 'first-in' : 'second-in'} disabled={busy}
+        onPress={() => onObservations({ ...observations, ...clearedReturn,
+          firstServe: first ? 'in' : 'fault', secondServe: first ? 'unknown' : 'in' })}>
+        <T bold style={optionText}>In</T>
+      </Button>,
+      <Button key="fault" compact style={optionButton} testID={first ? 'first-fault' : 'second-double-fault'} disabled={busy}
+        onPress={() => first ? onObservations({ ...observations, ...clearedReturn, firstServe: 'fault', secondServe: 'unknown' }) : onEnding('double-fault')}>
+        <T bold style={optionText}>{first ? 'Fault' : 'Double fault'}</T>
+      </Button>,
+      <Button key="ace" compact style={optionButton} testID="serve-ace" disabled={busy} onPress={() => onEnding('ace')}>
+        <T bold style={optionText}>Ace</T>
+      </Button>,
+    ];
+  } else if (step === 'return-result') {
+    choices = ([{ value: 'in', label: 'In' }, { value: 'error', label: 'Missed' }] as const).map(({ value, label }) =>
+      <Button key={value} compact style={optionButton} testID={`return-result-${value}`} disabled={busy}
+        onPress={() => onObservations({ ...observations, returnResult: value, returnStroke: 'unknown' })}>
+        <T bold style={optionText}>{label}</T>
+      </Button>);
+  } else {
+    choices = strokeOptions.map(({ value, label }) => <Button key={value} compact style={optionButton} testID={`return-stroke-${value}`} disabled={busy}
+      onPress={() => onObservations({ ...observations, returnStroke: value })}>
+      <T bold style={optionText}>{label}</T>
+    </Button>);
+  }
 
-  return <Card style={{ padding: 12, gap: 10 }}>
-    <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
-      <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
-        <Eyebrow style={{ color: c.accent }}>{awaitingServe ? 'Serve' : 'Serve recorded'}</Eyebrow>
-        <T bold style={{ fontSize: 18, lineHeight: 24 }}>{serveLabel}</T>
-      </View>
-      <Row style={{ justifyContent: 'flex-end', gap: 6, maxWidth: '62%' }}>
-        {awaitingServe && <Button compact style={utilityButton} disabled={busy} onPress={onLet}>
-          {lets ? `Let · ${lets}` : 'Let'}
-        </Button>}
-        {!firstServe && <Button compact label="Clear serve" style={utilityButton} disabled={busy} onPress={() => onObservations({
-          ...observations, firstServe: 'unknown', secondServe: 'unknown', returnStroke: 'unknown', returnResult: 'unknown',
-        })}>Clear</Button>}
-        {!awaitingServe && canRecordAce && <Button compact style={utilityButton} disabled={busy} onPress={() => onEnding('ace')}>Ace</Button>}
-      </Row>
-    </Row>
-    {awaitingServe ? <View style={optionRow}>
-      <Button compact style={optionButton} testID={firstServe ? 'first-in' : 'second-in'} disabled={busy}
-        onPress={() => onObservations(firstServe ? { ...observations, firstServe: 'in' } : { ...observations, secondServe: 'in' })}>In</Button>
-      {firstServe
-        ? <Button compact style={optionButton} testID="first-fault" disabled={busy}
-          onPress={() => onObservations({ ...observations, firstServe: 'fault' })}>Fault</Button>
-        : <Button compact style={optionButton} disabled={busy} onPress={() => onEnding('double-fault')}>Double fault</Button>}
-      <Button compact style={optionButton} disabled={busy} onPress={() => onEnding('ace')}>Ace</Button>
-    </View> : <>
-      <Divider />
-      <ReturnChoices label="Return result" value={observations.returnResult} options={resultOptions}
-        busy={busy} onChange={returnResult => onObservations({
-          ...observations, returnResult, returnStroke: returnResult === 'unknown' ? 'unknown' : observations.returnStroke,
-        })} />
-      {observations.returnResult !== 'unknown' && <ReturnChoices label="Return stroke" value={observations.returnStroke} options={strokeOptions}
-        busy={busy} split={width < 390 || fontScale > 1.15} onChange={returnStroke => onObservations({ ...observations, returnStroke })} />}
-    </>}
-  </Card>;
+  return <View style={{ gap: 12 }}>
+    {!serving && <Card style={{ padding: 10, gap: 5, backgroundColor: c.bg }}>
+      <Row><T small bold>Serve</T><PlayerBadge side={server}>{names[server]}</PlayerBadge></Row>
+      <T small muted>{serveContext}</T>
+    </Card>}
+    <View testID={`service-step-${step}`}>
+      <Card style={{ padding: 12, gap: 12 }}>
+        <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+          <Row style={{ flex: 1, minWidth: 0, gap: 5 }}>
+            <PlayerBadge side={actor}>{names[actor]}</PlayerBadge>
+            <T small muted>{serving ? 'serving' : 'returning'}</T>
+          </Row>
+          {onStepBack && <Button quiet compact icon="chevron-left" testID="service-back" style={{ paddingHorizontal: 5 }} disabled={busy} onPress={onStepBack}>Back</Button>}
+        </Row>
+        <View style={{ gap: 2 }}>
+          <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+            <T bold style={{ fontSize: 19, lineHeight: 25, flex: 1, minWidth: 0 }}>{titles[step]}</T>
+            {serving && <Button compact testID="service-let" style={{ paddingHorizontal: 12, backgroundColor: c.bg }} disabled={busy} onPress={onLet}>
+              {lets ? `Let · ${lets}` : 'Let'}
+            </Button>}
+          </Row>
+          {context ? <T small muted>{context}</T> : null}
+        </View>
+        <View testID="service-choices" style={fontScale > 1.15 ? { gap: 7 } : optionRow}>{choices}</View>
+        <Button compact testID="skip-service-detail" style={{ backgroundColor: c.bg, paddingHorizontal: 8 }} disabled={busy} onPress={onSkip}>
+          <T small bold muted style={{ textAlign: 'center' }}>I'm not sure / didn't see</T>
+        </Button>
+      </Card>
+    </View>
+  </View>;
 }

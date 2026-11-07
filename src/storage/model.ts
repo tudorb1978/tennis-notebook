@@ -6,13 +6,15 @@ import { validateFormat } from '../domain/scoring.ts';
 import type { MatchFormat, Side } from '../domain/scoring.ts';
 import { validatePointNoteOptions } from '../domain/pointNotes.ts';
 import { isMatchDate } from '../domain/matchDates.ts';
+import { serveEntrySteps } from '../domain/serveEntry.ts';
+import type { ServeEntryStep } from '../domain/serveEntry.ts';
 
 export interface PlayerProfile { id: string; name: string; createdAt: string }
 export interface PlayerSnapshot { id: string | null; name: string }
 export type RecordingMode = 'score' | 'endings' | 'detailed';
 export const matchNotesMaxLength = 4000;
 export interface PendingEnding { actor: Side; ending: 'winner' | 'unforced-error' | 'forced-error' }
-export interface MatchDraft { observations: PointObservations; pending: PendingEnding | { winner: Side } | null; lets: number; actualServer?: Side | null }
+export interface MatchDraft { observations: PointObservations; pending: PendingEnding | { winner: Side } | null; lets: number; actualServer?: Side | null; serveStep?: ServeEntryStep }
 interface MatchDetails {
   schemaVersion: 1;
   id: string;
@@ -70,6 +72,9 @@ export function validateMatch(value: unknown): asserts value is MatchRecord {
   if (!['score', 'endings', 'detailed'].includes(value.mode as string)) throw new Error('Invalid recording mode.');
   if (!Array.isArray(value.events) || value.events.length > 20000) throw new Error('Invalid match history.');
   object(value.draft); object(value.draft.observations);
+  if (value.draft.serveStep !== undefined && !serveEntrySteps.includes(value.draft.serveStep as ServeEntryStep)) {
+    throw new Error('Invalid serve entry step.');
+  }
   if (value.draft.actualServer !== undefined && value.draft.actualServer !== null && value.draft.actualServer !== 0 && value.draft.actualServer !== 1) {
     throw new Error('Invalid server for the pending point.');
   }
