@@ -28,8 +28,16 @@ export async function pickBackup(): Promise<string | null> {
   return new File(asset.uri).text();
 }
 async function loadReportAsset(moduleId: number): Promise<Uint8Array> {
-  const asset = await Asset.fromModule(moduleId).downloadAsync();
-  return Platform.OS === 'web' ? new Uint8Array(await (await fetch(asset.uri)).arrayBuffer()) : new File(asset.localUri ?? asset.uri).bytes();
+  let asset = Asset.fromModule(moduleId);
+  // Android images can be marked downloaded with a drawable name, not a file URI.
+  // A fresh Asset copies that bundled resource into the cache before reading it.
+  if (Platform.OS === 'android' && asset.localUri && !asset.localUri.includes(':')) {
+    asset = new Asset({ name: asset.name, type: asset.type, hash: asset.hash, uri: asset.localUri });
+  }
+  await asset.downloadAsync();
+  if (Platform.OS === 'web') return new Uint8Array(await (await fetch(asset.uri)).arrayBuffer());
+  if (!asset.localUri) throw new Error('Could not load a report asset. Please try exporting again.');
+  return new File(asset.localUri).bytes();
 }
 async function shareReportPDF(filename: string, create: (assets: ReportAssets) => Promise<Uint8Array>): Promise<void> {
   // Include both weights' redistribution notice in every app bundle.
