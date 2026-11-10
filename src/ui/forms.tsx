@@ -19,6 +19,7 @@ import { OutcomeHelpButton } from './OutcomeGuide.tsx';
 export const modeOptions: { value: RecordingMode; label: string }[] = [{ value: 'score', label: 'Score' }, { value: 'endings', label: 'Score & last shot' }, { value: 'detailed', label: 'Score, serve & last shot' }];
 type SavedMatchDetails = Pick<MatchRecord, 'group' | 'date' | 'round' | 'venue' | 'surface' | 'courtSetting' | 'conditions'>;
 type MatchDetails = Required<SavedMatchDetails>;
+export type MatchDetailsValues = MatchDetails & { opponent: string };
 const surfaces = ['Clay', 'Artificial clay', 'Grass', 'Artificial grass (astro turf)', 'Acrylic', 'Tarmac', 'Carpet', 'Other'];
 export interface SetupValues extends MatchDetails {
   playerId: string;
@@ -57,11 +58,19 @@ function MatchContextFields({ values, update }: { values: MatchDetails; update: 
   </>;
 }
 
-export function MatchDetailsForm({ record, busy, onSave, onDelete }: { record: MatchRecord; busy: boolean; onSave: (details: MatchDetails) => void; onDelete: () => void }) {
+export function MatchDetailsForm({ record, busy, onSave, onDelete }: { record: MatchRecord; busy: boolean; onSave: (details: MatchDetailsValues) => void; onDelete: () => void }) {
   const c = useTheme();
   const [values, setValues] = useState(() => matchDetailsFrom(record));
+  const [opponent, setOpponent] = useState(record.players[1].name);
+  const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const update = (details: Partial<MatchDetails>) => setValues(previous => ({ ...previous, ...details }));
+  const save = () => {
+    const name = opponent.trim();
+    if (!name || name.length > 80) { setError('Enter an opponent’s name of up to 80 characters.'); return; }
+    setError('');
+    onSave({ ...matchDetailsFrom(values), opponent: name });
+  };
   if (confirmDelete) return <Stack>
     <Heading>Delete this match?</Heading>
     <T bold>{record.players[0].name} vs {record.players[1].name}</T>
@@ -72,9 +81,15 @@ export function MatchDetailsForm({ record, busy, onSave, onDelete }: { record: M
   </Stack>;
   return <Stack>
     <Heading>Match details</Heading>
+    <View style={{ gap: 3 }}>
+      <T small muted>Your player</T>
+      <T bold>{record.players[0].name}</T>
+    </View>
+    <Field label="Opponent’s name" testID="edit-opponent-name" value={opponent} onChange={value => { setOpponent(value); setError(''); }} maxLength={80} />
+    {error ? <Notice error>{error}</Notice> : null}
     <Field label="Tournament or group" value={values.group} onChange={group => update({ group })} placeholder="Optional" />
     <MatchContextFields values={values} update={update} />
-    <Button primary disabled={busy} onPress={() => onSave(matchDetailsFrom(values))}>Save match details</Button>
+    <Button primary disabled={busy} onPress={save}>Save match details</Button>
     <Divider />
     <Button quiet label="Delete match" disabled={busy} onPress={() => setConfirmDelete(true)}>
       <T small bold style={{ color: c.error, textAlign: 'center' }}>Delete match</T>
@@ -140,7 +155,9 @@ export function SetupForm({ players, event, preferredPlayerId, busy, onSave }: {
   const c = useTheme();
   const [values, setValues] = useState<SetupValues>(() => ({
     playerId: preferredPlayerId ?? event?.latest.players[0].id ?? players[0]?.id ?? '',
-    playerName: '', opponent: '', preset: 'fast4-single', mode: 'endings',
+    playerName: '', opponent: '',
+    preset: setupFormats.find(format => format.id === event?.latest.format.id)?.id ?? 'fast4-single',
+    mode: event?.latest.mode ?? 'endings',
     date: localDate(), group: event?.name ?? '', round: '', venue: event?.latest.venue ?? '',
     surface: event?.latest.surface ?? '', courtSetting: event?.latest.courtSetting ?? '', conditions: event?.latest.conditions ?? '',
   }));
@@ -161,6 +178,20 @@ export function SetupForm({ players, event, preferredPlayerId, busy, onSave }: {
       {!values.playerId && <Field label="Your player’s name" testID="new-player-name" value={values.playerName} onChange={v => update('playerName', v)} maxLength={80} />}
       <Field label="Opponent’s name" testID="opponent-name" value={values.opponent} onChange={v => update('opponent', v)} maxLength={80} />
     </Card>
+    <Card style={{ gap: 8 }}>
+      {!event && <Field label="Tournament or group" value={values.group} onChange={v => update('group', v)} placeholder="Optional" />}
+      <Button quiet label={extra ? 'Hide event and conditions' : 'Date, event and conditions'} onPress={() => setExtra(v => !v)} disabled={busy}
+        style={{ paddingHorizontal: 0 }}>
+        <Row style={{ flexWrap: 'nowrap' }}>
+          <Icon name="calendar" color={c.accent} size={18} />
+          <T small bold style={{ flex: 1 }}>{extra ? 'Hide event and conditions' : 'Date, event and conditions'}</T>
+          <View style={{ transform: [{ rotate: extra ? '-90deg' : '90deg' }] }}>
+            <Icon name="chevron-right" color={c.sub} size={16} />
+          </View>
+        </Row>
+      </Button>
+      {extra && <MatchContextFields values={values} update={details => setValues(previous => ({ ...previous, ...details }))} />}
+    </Card>
     <Card>
       <SetupSectionTitle icon="court">Match format</SetupSectionTitle>
       <View style={{ gap: 7 }}>
@@ -177,20 +208,6 @@ export function SetupForm({ players, event, preferredPlayerId, busy, onSave }: {
         {modeOptions.map(({ value, label }) => <SetupOption key={value} testID={`recording-depth-${value}`} title={label} detail={modeDetails[value]}
           selected={values.mode === value} disabled={busy} onPress={() => update('mode', value)} />)}
       </View>
-    </Card>
-    <Card style={{ gap: 8 }}>
-      {!event && <Field label="Tournament or group" value={values.group} onChange={v => update('group', v)} placeholder="Optional" />}
-      <Button quiet label={extra ? 'Hide event and conditions' : 'Date, event and conditions'} onPress={() => setExtra(v => !v)} disabled={busy}
-        style={{ paddingHorizontal: 0 }}>
-        <Row style={{ flexWrap: 'nowrap' }}>
-          <Icon name="calendar" color={c.accent} size={18} />
-          <T small bold style={{ flex: 1 }}>{extra ? 'Hide event and conditions' : 'Date, event and conditions'}</T>
-          <View style={{ transform: [{ rotate: extra ? '-90deg' : '90deg' }] }}>
-            <Icon name="chevron-right" color={c.sub} size={16} />
-          </View>
-        </Row>
-      </Button>
-      {extra && <MatchContextFields values={values} update={details => setValues(previous => ({ ...previous, ...details }))} />}
     </Card>
     <Button primary testID="save-match" disabled={busy} onPress={() => onSave(values)}>{busy ? 'Saving…' : 'Save match'}</Button>
   </Stack>;

@@ -113,6 +113,13 @@ const output=process.env.TEST_OUTPUT||'/tmp';
   const reportStage=index=>page.getByTestId(`report-stage-${index}`);
   const reportPoint=number=>page.getByTestId(`report-point-${number}`);
   const shotStat=(player,strokeName,metric,value)=>page.getByLabel(`${player}, ${strokeName}, ${metric}: ${value}`,{exact:true});
+  const setupSectionOrder=async()=>{
+    const players=await page.getByText('Players',{exact:true}).boundingBox();
+    const event=await page.getByRole('textbox',{name:'Tournament or group',exact:true}).boundingBox();
+    const format=await page.getByText('Match format',{exact:true}).boundingBox();
+    const depth=await page.getByText('Recording depth',{exact:true}).boundingBox();
+    assert.ok(players.y<event.y&&event.y<format.y&&format.y<depth.y,'Setup order must be Players, event/context, format, recording depth');
+  };
   const openStart=async(opponent)=>{
     await page.getByRole('button',{name:`Alex vs ${opponent}, Not started`,exact:true}).click();
     await button('Start match').click();
@@ -145,6 +152,9 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     console.log('PASS Light appearance remains readable with a dark system preference and theme changes');
     await expect(button('New match & event')).toHaveCount(0);
     await button('Start recording your first match').click();
+    await expect(page.getByTestId('fast4-single')).toHaveAttribute('aria-pressed','true');
+    await expect(page.getByTestId('recording-depth-endings')).toHaveAttribute('aria-pressed','true');
+    await setupSectionOrder();
     await page.getByTestId('new-player-name').fill('Alex');await page.getByTestId('opponent-name').fill('Jamie');
     await page.getByTestId('fast4-match-tiebreak').click();await page.getByRole('textbox',{name:'Tournament or group',exact:true}).fill('Club tournament');
     await expect(page.getByText('First server',{exact:true})).toHaveCount(0);
@@ -675,7 +685,10 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await expect(page.getByRole('textbox',{name:'Round',exact:true})).toHaveValue('');
     await expect(page.getByRole('textbox',{name:'Date (YYYY-MM-DD)',exact:true})).toHaveValue('2026-11-05');
     await expect(button('Outdoor')).toHaveAttribute('aria-pressed','true');
+    await expect(page.getByTestId('fast4-match-tiebreak')).toHaveAttribute('aria-pressed','true');
+    await expect(page.getByTestId('recording-depth-detailed')).toHaveAttribute('aria-pressed','true');
     await page.getByTestId('opponent-name').fill('Taylor');await page.getByTestId('normal-match-tiebreak').click();
+    await page.getByTestId('recording-depth-endings').click();
     await page.getByTestId('save-match').click();await openStart('Taylor');await confirmStart();
     await record(0,'unforced-error','backhand');await points('0','15');
     await pickWinner(0);await button("I'm not sure how it ended").click();await points('15','15');
@@ -691,6 +704,9 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await page.getByTestId('back-to-matches').click();
 
     await page.getByTestId('new-match').click();await page.getByTestId('opponent-name').fill('Sam');
+    await expect(page.getByTestId('fast4-single')).toHaveAttribute('aria-pressed','true');
+    await expect(page.getByTestId('recording-depth-endings')).toHaveAttribute('aria-pressed','true');
+    await setupSectionOrder();
     await page.getByRole('textbox',{name:'Tournament or group',exact:true}).fill('County Juniors');
     await button('Date, event and conditions').click();
     await page.getByRole('textbox',{name:'Date (YYYY-MM-DD)',exact:true}).fill('2026-10-04');
@@ -839,6 +855,112 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await expect(page.getByTestId('new-player-name')).toHaveValue('');
     await expect(page.getByTestId('opponent-name')).toHaveValue('');
     console.log('PASS Settings player rename preserves history; confirmed deletion removes only owned data and resets the last-player empty state');
+
+    // Separate imported fixtures exercise setup defaults and opponent edits without changing report totals above.
+    await context.close();context=await browser.newContext({viewport:{width:390,height:915},acceptDownloads:true});page=await context.newPage();wire();
+    await page.goto(base,{waitUntil:'domcontentloaded'});await expect(button('Start recording your first match')).toBeVisible();
+    const regressionPlayer={...backup.players[0],id:'setup-opponent-regression-player'};
+    const ownedPlayers=name=>[{id:regressionPlayer.id,name:regressionPlayer.name},{id:null,name}];
+    const inheritanceCases=[
+      {preset:'fast4-single',mode:'score',format:structuredClone(sam.format)},
+      {preset:'fast4-match-tiebreak',mode:'endings',format:structuredClone(jamie.format)},
+      {preset:'normal-match-tiebreak',mode:'detailed',format:structuredClone(taylor.format)},
+    ].map((item,index)=>({...item,group:`Inherited defaults ${index+1}`,eventId:`event:defaults-${index+1}`}));
+    inheritanceCases[0].format.stages[0].tieBreak.pointsToWin=5;
+    for(const [index,item]of inheritanceCases.entries())item.format.name=`Event rules ${index+1}`;
+    const unstartedFixture=(id,name,group,eventId,format,mode,date)=>({...sam,id,revision:1,players:ownedPlayers(name),
+      group,eventId,date,format,mode,firstServer:null,timingStartedAt:null,events:[],draft:structuredClone(sam.draft),
+      createdAt:`${date}T09:00:00.000Z`,updatedAt:`${date}T09:00:00.000Z`});
+    const inheritanceFixtures=inheritanceCases.flatMap((item,index)=>[
+      unstartedFixture(`defaults-old-${index}`,`Earlier opponent ${index}`,item.group,item.eventId,
+        inheritanceCases[(index+1)%3].format,inheritanceCases[(index+1)%3].mode,'2026-11-08'),
+      unstartedFixture(`defaults-latest-${index}`,`Latest opponent ${index}`,item.group,item.eventId,item.format,item.mode,'2026-11-09'),
+    ]);
+    const startedEvents=structuredClone(sam.events);
+    const startedPoint=startedEvents.find(event=>event.type==='point');
+    startedPoint.input.observations={...sam.draft.observations,...startedPoint.input.observations,notes:'Started rally note remains'};
+    const editFixtures=[
+      {...sam,id:'opponent-edit-started',revision:1,players:ownedPlayers('Started opponent'),eventId:'event:opponent-started',
+        group:'Opponent edit started',events:startedEvents,matchNotes:'Started match note remains'},
+      {...jamie,id:'opponent-edit-completed',revision:1,players:ownedPlayers('Completed opponent'),eventId:'event:opponent-completed',group:'Opponent edit completed'},
+      {...unstartedFixture('opponent-edit-unstarted','Prepared opponent','Opponent edit prepared','event:opponent-prepared',sam.format,'endings','2026-11-09'),
+        matchNotes:'Prepared match note remains'},
+    ];
+    const regressionBackup={...backup,players:[regressionPlayer],matches:[...inheritanceFixtures,...editFixtures]};
+    await button('Settings').click();const importRegression=page.waitForEvent('filechooser');await button('Restore backup').click();
+    await(await importRegression).setFiles({name:'setup-opponent-regression.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(regressionBackup))});
+    await expect(page.getByText('1 new players and 9 new matches.',{exact:true})).toBeVisible();await button('Import new records').click();
+    for(const [index,item]of inheritanceCases.entries()){
+      await button('Add match to event').click();await button(`${item.group} · 2026-11-08 to 2026-11-09`).click();
+      await expect(page.getByTestId(item.preset)).toHaveAttribute('aria-pressed','true');
+      await expect(page.getByTestId(`recording-depth-${item.mode}`)).toHaveAttribute('aria-pressed','true');
+      await expect(page.getByTestId('opponent-name')).toHaveValue('');
+      await page.getByTestId('opponent-name').fill(`Inherited new opponent ${index}`);await page.getByTestId('save-match').click();
+      await expect(page.getByRole('button',{name:`Alex vs Inherited new opponent ${index}, Not started`,exact:true})).toBeVisible();
+    }
+    await button('Settings').click();const inheritedBackup=await settingsBackup();
+    for(const [index,item]of inheritanceCases.entries()){
+      const saved=inheritedBackup.matches.find(match=>match.players[1].name===`Inherited new opponent ${index}`);
+      assert.deepEqual(saved.format,item.format);assert.equal(saved.mode,item.mode);assert.equal(saved.eventId,item.eventId);
+      assert.equal(saved.firstServer,null);assert.deepEqual(saved.events,[]);
+    }
+    await page.getByTestId('new-match').click();await setupSectionOrder();
+    await expect(page.getByTestId('fast4-single')).toHaveAttribute('aria-pressed','true');
+    await expect(page.getByTestId('recording-depth-endings')).toHaveAttribute('aria-pressed','true');
+    await expect(page.getByRole('textbox',{name:'Tournament or group',exact:true})).toHaveValue('');
+    await page.setViewportSize({width:320,height:915});
+    const eventInput=page.getByRole('textbox',{name:'Tournament or group',exact:true});await eventInput.focus();
+    await expect(eventInput).toBeFocused();await expect(eventInput).toBeInViewport({ratio:1});
+    await button('Date, event and conditions').click();
+    for(const label of ['Venue','Conditions']){
+      const input=page.getByRole('textbox',{name:label,exact:true});await input.focus();
+      await expect(input).toBeFocused();await expect(input).toBeInViewport({ratio:1});
+    }
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.screenshot({path:path.join(output,'tennis-setup-context-focused-320.png'),fullPage:true});
+    await page.getByTestId('back-to-matches').click();await page.setViewportSize({width:390,height:915});
+    console.log('PASS Same-event setup inherits latest rules and recording depth for all three presets; fresh defaults, section order and focused fields remain usable');
+
+    const editedNames=new Map();
+    for(const fixture of editFixtures){
+      const oldName=fixture.players[1].name,newName=`New ${oldName}`;
+      await page.getByRole('button',{name:new RegExp(`^Alex vs ${oldName},`)}).click();
+      await button('Match details').click();
+      const opponent=page.getByTestId('edit-opponent-name');await expect(opponent).toHaveValue(oldName);
+      for(const empty of['','   ']){
+        await opponent.fill(empty);await expect(page.getByRole('alert')).toHaveCount(0);
+        await button('Save match details').click();
+        await expect(page.getByRole('alert')).toHaveText('Enter an opponent’s name of up to 80 characters.');
+        await expect(opponent).toBeVisible();
+      }
+      await opponent.fill(`  ${newName}  `);await expect(page.getByRole('alert')).toHaveCount(0);
+      await button('Save match details').click();await expect(button('Save match details')).toHaveCount(0);
+      if(fixture.id==='opponent-edit-started'){
+        await points('15','0');await expect(page.getByText('Winner · Forehand',{exact:true})).toBeVisible();
+        await button('Edit notes').click();await expect(page.getByRole('textbox',{name:'Notes',exact:true})).toHaveValue('Started rally note remains');await button('Cancel').click();
+        await button('Match notes').click();await expect(page.getByRole('textbox',{name:'Notes about the match',exact:true})).toHaveValue('Started match note remains');await button('Cancel').click();
+      }else if(fixture.id==='opponent-edit-completed'){
+        await points('11','9');await expect(shotStat(newName,'Serve','Winners',3)).toBeVisible();
+        await expect(page.getByText(matchNotes,{exact:true})).toBeVisible();
+      }
+      if(fixture.firstServer!==null)await page.getByTestId('back-to-matches').click();
+      await page.reload({waitUntil:'domcontentloaded'});
+      const status=fixture.firstServer===null?'Not started':fixture.id==='opponent-edit-completed'?'Completed':'In progress';
+      await expect(page.getByRole('button',{name:new RegExp(`^Alex vs ${newName}, ${status}`)})).toBeVisible();
+      await expect(page.getByRole('button',{name:new RegExp(`^Alex vs ${oldName},`)})).toHaveCount(0);
+      await page.getByRole('button',{name:new RegExp(`^Alex vs ${newName},`)}).click();await button('Match details').click();
+      await expect(page.getByTestId('edit-opponent-name')).toHaveValue(newName);await button('Cancel').click();
+      if(fixture.firstServer!==null){await points(...(fixture.id==='opponent-edit-completed'?['11','9']:['15','0']));await page.getByTestId('back-to-matches').click();}
+      editedNames.set(fixture.id,newName);
+    }
+    await button('Settings').click();const editedBackup=await settingsBackup();
+    for(const fixture of editFixtures){
+      const edited=editedBackup.matches.find(match=>match.id===fixture.id);
+      assert.equal(edited.players[1].name,editedNames.get(fixture.id));assert.ok(edited.revision>fixture.revision);
+      assert.deepEqual(edited.players,[fixture.players[0],{...fixture.players[1],name:editedNames.get(fixture.id)}]);
+      assert.deepEqual({...edited,players:fixture.players,revision:fixture.revision,updatedAt:fixture.updatedAt},fixture);
+    }
+    console.log('PASS Opponent edits trim names, reject empty input, survive reload in every match state and preserve all scoring, point, stroke, draft and note data');
     assert.deepEqual(errors,[]);console.log('PASS Restore into an empty installation, duplicate import, narrow layout, and no runtime errors');
   }catch(error){console.error((await page.locator('body').innerText()).slice(-6000));await page.screenshot({path:path.join(output,'tennis-app-failure.png'),fullPage:true});throw error;}
   finally{await browser.close();}

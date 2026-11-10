@@ -71,6 +71,15 @@ def fill(resource, value, scroll=False):
     run('shell', 'input', 'keyevent', '4')
     time.sleep(.3)
 
+def replace_name(resource, value):
+    tap(resource=resource, scroll=True)
+    # Name fields are limited to 80 characters. Clear the existing value before typing its replacement.
+    run('shell', 'input', 'keyevent', '123')
+    run('shell', 'input', 'keyevent', *(['67'] * 80))
+    run('shell', 'input', 'text', value.replace(' ', '%s'))
+    run('shell', 'input', 'keyevent', '4')
+    time.sleep(.3)
+
 def capture(name):
     Path(args.output, name).write_bytes(run('exec-out', 'screencap', '-p', binary=True))
 
@@ -287,6 +296,20 @@ try:
 
     tap(text='Pause', scroll=True)
     wait_for(text='Match paused')
+    tap(text='Match details')
+    wait_for(resource='edit-opponent-name')
+    replace_name('edit-opponent-name', 'Robin')
+    tap(text='Save match details', scroll=True)
+    wait_for(text='Match paused')
+    wait_for(text='40')
+    run('shell', 'am', 'force-stop', package)
+    run('shell', 'am', 'start', '-n', package+'/.MainActivity')
+    wait_for(text='Match paused')
+    wait_for(text='Robin')
+    wait_for(text='40')
+    tap(resource='tab-history')
+    wait_for(text='Native offline note')
+    print('PASS Opponent name edits persist after a cold start without changing the paused score or point notes', flush=True)
     tap(resource='tab-report')
     for variant in ('summary', 'point-by-point', 'combined'):
         tap(resource='match-pdf-export', scroll=True)

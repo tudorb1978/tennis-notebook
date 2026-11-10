@@ -10,7 +10,8 @@
     "android": {
       "package": "uk.tennistracker.app",
       "versionCode": 1,
-      "allowBackup": true
+      "allowBackup": true,
+      "softwareKeyboardLayoutMode": "resize"
     },
     "ios": { "bundleIdentifier": "uk.tennistracker.app", "supportsTablet": true },
     "web": { "bundler": "metro", "favicon": "./assets/tennis-notebook.png" },

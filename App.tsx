@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { randomUUID } from 'expo-crypto';
@@ -60,10 +60,23 @@ function canRecordMatch(status: MatchScore['status'] | undefined): boolean {
   return status === 'in-progress' || status === 'suspended';
 }
 function AwakeWhileRecording() { useKeepAwake('tennis-recording'); return null; }
+function revealFocusedInput(scroll: React.RefObject<React.ComponentRef<typeof ScrollView> | null>) {
+  if (Platform.OS === 'web' || !Keyboard.isVisible()) return;
+  requestAnimationFrame(() => {
+    const input = TextInput.State.currentlyFocusedInput();
+    if (!input || !Keyboard.isVisible()) return;
+    scroll.current?.measureInWindow((_x, top) => {
+      if (Keyboard.isVisible() && TextInput.State.currentlyFocusedInput() === input) {
+        scroll.current?.scrollResponderScrollNativeHandleToKeyboard(input, top + 16, true);
+      }
+    });
+  });
+}
 function Main() {
   const c = useTheme(); const layout = useLayout();
   const { height, fontScale } = useWindowDimensions();
   const mainScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const modalScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const repository = useRef<MatchRepository | null>(null);
   const current = useRef<MatchRecord | null>(null);
   const saving = useRef(false);
@@ -255,7 +268,8 @@ function Main() {
     const eventId = setupEvent?.key ?? (details.group ? `event:${randomUUID()}` : undefined);
     const next: UnstartedMatchRecord = { schemaVersion: 1, id: randomUUID(), revision: 0, createdAt: now, updatedAt: now, timingStartedAt: null,
       players: [{ id: ownerId, name }, { id: null, name: values.opponent.trim() }], ...details, ...(eventId ? { eventId } : {}),
-      format: presets[values.preset], firstServer: null, mode: values.mode, events: [], draft: emptyDraft() };
+      format: setupEvent?.latest.format.id === values.preset ? setupEvent.latest.format : presets[values.preset],
+      firstServer: null, mode: values.mode, events: [], draft: emptyDraft() };
     const saved = await repository.current!.createMatch(next, newPlayer);
     if (newPlayer) setPlayers(await repository.current!.players());
     updateList(saved); setScreen('home'); setNotice('Match saved. Open it when you’re ready to start.');
@@ -535,8 +549,10 @@ function Main() {
         </Row>}
     </View>
     {pinScore && <View style={{ width: '100%', maxWidth: 620, alignSelf: 'center', paddingHorizontal: 18, paddingBottom: 5 }}>{scoreboard}</View>}
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView ref={mainScroll} key={`${screen}-${tab}-${screen === 'match' && tab === 'record' ? record?.mode : ''}`} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}>
+      <ScrollView ref={mainScroll} key={`${screen}-${tab}-${screen === 'match' && tab === 'record' ? record?.mode : ''}`} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}
+        onKeyboardDidShow={() => { if (!panel && !guideOpen) revealFocusedInput(mainScroll); }}
+        onLayout={() => { if (!panel && !guideOpen) revealFocusedInput(mainScroll); }}>
         {!panel && errorBlock}
         {screen === 'loading' ? <ActivityIndicator accessibilityLabel="Opening saved matches" color={c.accent} size="large" />
           : screen === 'home' ? homeContent()
@@ -586,7 +602,8 @@ function Main() {
     <Modal visible={panel !== null || guideOpen || strokeMenuOpen} transparent animationType="none" onRequestClose={() => {
       if (guideOpen) setGuideOpen(false);
       else if (!busy) closePanel();
-    }}><SafeAreaView style={layout.modal}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={layout.sheet}>
+    }}><SafeAreaView style={[layout.modal, { justifyContent: 'flex-start' }]}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
+      style={{ flex: 1, width: '100%', justifyContent: 'center' }}><View style={layout.sheet}>
       {guideOpen && <ScrollView contentContainerStyle={layout.content}>
         <OutcomeGuide onClose={() => setGuideOpen(false)} />
       </ScrollView>}
@@ -594,7 +611,9 @@ function Main() {
       {panel?.kind === 'point-notes' && selectedEntry && record && !guideOpen ? <PointNotesEditor
         key={selectedEntry.id} input={selectedEntry.input} names={[record.players[0].name, record.players[1].name]}
         busy={busy} errorBlock={errorBlock} onSave={saveSelectedPoint}
-      /> : <ScrollView style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? (strokeMenuOpen ? 'more-strokes' : 'closed')} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}>
+      /> : <ScrollView ref={modalScroll} style={guideOpen ? { display: 'none' } : undefined} key={selectedEntry ? `${panel?.kind}-${selectedEntry.id}` : panel?.kind ?? (strokeMenuOpen ? 'more-strokes' : 'closed')} keyboardShouldPersistTaps="handled" contentContainerStyle={layout.content}
+        onKeyboardDidShow={() => { if (!guideOpen) revealFocusedInput(modalScroll); }}
+        onLayout={() => { if (!guideOpen) revealFocusedInput(modalScroll); }}>
       {panel?.kind === 'pdf-ready' || panel?.kind === 'export-match-pdf' ? error ? <Notice error>{error}</Notice> : null : errorBlock}
       {strokeMenuOpen && endingDraft && record && <MoreShotOptions
         name={record.players[endingDraft.actor].name} side={endingDraft.actor} ending={endingDraft.ending}
@@ -645,9 +664,9 @@ function Main() {
         onStart={firstServer => void startMatch(panel.match, firstServer)} />}
       {panel?.kind === 'match-details' && record && <MatchDetailsForm
         record={record} busy={busy}
-        onSave={details => void mutate(m => {
+        onSave={({ opponent, ...details }) => void mutate(m => {
           const eventId = matchEventKey(m) ?? (details.group ? `event:${randomUUID()}` : undefined);
-          return { ...m, ...details, ...(eventId ? { eventId } : {}) };
+          return { ...m, ...details, players: [m.players[0], { ...m.players[1], name: opponent }], ...(eventId ? { eventId } : {}) };
         }, () => { closePanel(); setNotice('Match details saved.'); })}
         onDelete={() => void external(async () => {
           await repository.current!.deleteMatch(record.id, record.revision);
@@ -726,7 +745,7 @@ function Main() {
       {panel?.kind === 'import' && <Stack><Heading>Restore backup</Heading><T>{panel.preview.newPlayers} new players and {panel.preview.newMatches} new matches.</T><Notice>{panel.preview.identical} identical matches will be skipped. {panel.preview.conflicts} conflicts will be left unchanged.</Notice><T small muted>Existing records will not be overwritten.</T><Button primary disabled={busy || (panel.preview.newMatches === 0 && panel.preview.newPlayers === 0)} onPress={() => {
       const text = panel.text;
       void external(async () => { const result = await repository.current!.importNew(text); setPlayers(await repository.current!.players()); setMatches(await repository.current!.matches()); setPanel(null); setScreen('home'); setNotice(`Restored ${result.newMatches} matches. Existing records were kept.`); });
-    }}>Import new records</Button></Stack>}</ScrollView>}</KeyboardAvoidingView></SafeAreaView></Modal>
+    }}>Import new records</Button></Stack>}</ScrollView>}</View></KeyboardAvoidingView></SafeAreaView></Modal>
   </SafeAreaView>;
 }
 
