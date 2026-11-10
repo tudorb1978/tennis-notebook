@@ -861,10 +861,13 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await page.goto(base,{waitUntil:'domcontentloaded'});await expect(button('Start recording your first match')).toBeVisible();
     const regressionPlayer={...backup.players[0],id:'setup-opponent-regression-player'};
     const ownedPlayers=name=>[{id:regressionPlayer.id,name:regressionPlayer.name},{id:null,name}];
+    const fullNormalSets={...structuredClone(taylor.format),id:'normal-best-of-three',name:'Best of 3 normal sets',
+      stages:Array.from({length:3},()=>structuredClone(taylor.format.stages[0]))};
     const inheritanceCases=[
       {preset:'fast4-single',mode:'score',format:structuredClone(sam.format)},
       {preset:'fast4-match-tiebreak',mode:'endings',format:structuredClone(jamie.format)},
       {preset:'normal-match-tiebreak',mode:'detailed',format:structuredClone(taylor.format)},
+      {preset:'normal-best-of-three',mode:'endings',format:fullNormalSets},
     ].map((item,index)=>({...item,group:`Inherited defaults ${index+1}`,eventId:`event:defaults-${index+1}`}));
     inheritanceCases[0].format.stages[0].tieBreak.pointsToWin=5;
     for(const [index,item]of inheritanceCases.entries())item.format.name=`Event rules ${index+1}`;
@@ -873,7 +876,7 @@ const output=process.env.TEST_OUTPUT||'/tmp';
       createdAt:`${date}T09:00:00.000Z`,updatedAt:`${date}T09:00:00.000Z`});
     const inheritanceFixtures=inheritanceCases.flatMap((item,index)=>[
       unstartedFixture(`defaults-old-${index}`,`Earlier opponent ${index}`,item.group,item.eventId,
-        inheritanceCases[(index+1)%3].format,inheritanceCases[(index+1)%3].mode,'2026-11-08'),
+        inheritanceCases[(index+1)%inheritanceCases.length].format,inheritanceCases[(index+1)%inheritanceCases.length].mode,'2026-11-08'),
       unstartedFixture(`defaults-latest-${index}`,`Latest opponent ${index}`,item.group,item.eventId,item.format,item.mode,'2026-11-09'),
     ]);
     const startedEvents=structuredClone(sam.events);
@@ -889,7 +892,7 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     const regressionBackup={...backup,players:[regressionPlayer],matches:[...inheritanceFixtures,...editFixtures]};
     await button('Settings').click();const importRegression=page.waitForEvent('filechooser');await button('Restore backup').click();
     await(await importRegression).setFiles({name:'setup-opponent-regression.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(regressionBackup))});
-    await expect(page.getByText('1 new players and 9 new matches.',{exact:true})).toBeVisible();await button('Import new records').click();
+    await expect(page.getByText(`1 new players and ${regressionBackup.matches.length} new matches.`,{exact:true})).toBeVisible();await button('Import new records').click();
     for(const [index,item]of inheritanceCases.entries()){
       await button('Add match to event').click();await button(`${item.group} · 2026-11-08 to 2026-11-09`).click();
       await expect(page.getByTestId(item.preset)).toHaveAttribute('aria-pressed','true');
@@ -919,7 +922,7 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.screenshot({path:path.join(output,'tennis-setup-context-focused-320.png'),fullPage:true});
     await page.getByTestId('back-to-matches').click();await page.setViewportSize({width:390,height:915});
-    console.log('PASS Same-event setup inherits latest rules and recording depth for all three presets; fresh defaults, section order and focused fields remain usable');
+    console.log('PASS Same-event setup inherits latest rules and recording depth for all four presets; fresh defaults, section order and focused fields remain usable');
 
     const editedNames=new Map();
     for(const fixture of editFixtures){

@@ -147,6 +147,67 @@ test('The match tie-break server follows the original service order after a 6–
   assert.equal(score.current!.server, 1);
 });
 
+test('Best of three normal sets ends at two sets to love without starting a third', () => {
+  const score = winSet(winSet(createScore(presets['normal-best-of-three'], 0), 0), 0);
+  assert.equal(score.status, 'completed');
+  assert.equal(score.winner, 0);
+  assert.equal(score.current, null);
+  assert.deepEqual(score.stagesWon, [2, 0]);
+  assert.deepEqual(score.completedStages, [
+    { kind: 'set', winner: 0, games: [6, 0], tieBreakPoints: null },
+    { kind: 'set', winner: 0, games: [6, 0], tieBreakPoints: null },
+  ]);
+});
+
+test('One set all starts a full normal third set with advantage games and a possible 7–5 finish', () => {
+  let score = winSet(winSet(createScore(presets['normal-best-of-three'], 0), 0), 1);
+  assert.deepEqual(score.stagesWon, [1, 1]);
+  assert.equal(score.status, 'in-progress');
+  assert.deepEqual(score.current, {
+    index: 2, phase: 'game', games: [0, 0], points: [0, 0], server: 0, tieBreakFirstServer: null,
+  });
+
+  score = alternatingGames(score, 10);
+  score = pointRun(score, [0, 0, 0, 1, 1, 1, 0]);
+  assert.deepEqual(score.current!.games, [5, 5]);
+  assert.deepEqual(pointLabels(score), ['Ad', '40']);
+  assert.deepEqual(pointStakes(score), [[], []], 'The next game alone cannot decide a set at 5–5.');
+  score = awardPoint(score, 0);
+  assert.deepEqual(score.current!.games, [6, 5]);
+  assert.deepEqual(score.stagesWon, [1, 1]);
+
+  score = pointRun(score, [0, 0, 0]);
+  assert.deepEqual(pointStakes(score), [['match', 'set', 'break'], []]);
+  score = awardPoint(score, 0);
+  assert.equal(score.status, 'completed');
+  assert.deepEqual(score.stagesWon, [2, 1]);
+  assert.deepEqual(score.completedStages[2], { kind: 'set', winner: 0, games: [7, 5], tieBreakPoints: null });
+});
+
+test('A normal third-set tie-break starts at 6–6, uses seven points and requires two clear', () => {
+  const splitSets = winSet(winSet(createScore(presets['normal-best-of-three'], 0), 0), 1);
+  const tieBreak = alternatingGames(splitSets, 12);
+  assert.equal(tieBreak.current!.index, 2);
+  assert.equal(tieBreak.current!.phase, 'set-tie-break');
+  assert.deepEqual(tieBreak.current!.games, [6, 6]);
+  assert.deepEqual(tieBreak.current!.points, [0, 0]);
+
+  const sevenLove = pointRun(tieBreak, [1, 1, 1, 1, 1, 1, 1]);
+  assert.equal(sevenLove.status, 'completed');
+  assert.deepEqual(sevenLove.stagesWon, [1, 2]);
+  assert.deepEqual(sevenLove.completedStages[2], { kind: 'set', winner: 1, games: [6, 7], tieBreakPoints: [0, 7] });
+
+  let extended = pointRun(tieBreak, Array.from({ length: 12 }, (_, i) => (i % 2) as Side));
+  assert.deepEqual(pointStakes(extended), [[], []]);
+  extended = awardPoint(extended, 0);
+  assert.equal(extended.status, 'in-progress');
+  assert.deepEqual(extended.current!.points, [7, 6]);
+  assert.deepEqual(pointStakes(extended), [['match', 'set'], []]);
+  extended = awardPoint(extended, 0);
+  assert.equal(extended.status, 'completed');
+  assert.deepEqual(extended.completedStages[2], { kind: 'set', winner: 0, games: [7, 6], tieBreakPoints: [8, 6] });
+});
+
 test('Tie-break service sequence is one serve then two, for either first server', () => {
   assert.deepEqual(Array.from({ length: 10 }, (_, i) => tieBreakServer(0, i)), [0, 1, 1, 0, 0, 1, 1, 0, 0, 1]);
   assert.deepEqual(Array.from({ length: 10 }, (_, i) => tieBreakServer(1, i)), [1, 0, 0, 1, 1, 0, 0, 1, 1, 0]);

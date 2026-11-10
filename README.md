@@ -18,13 +18,13 @@ The first device is an Android phone. iOS remains a future target. Package versi
 
 - [Courtside workflow](docs/courtside-workflow.md) describes setup, recording, corrections, and reports.
 - [Technical design](docs/technical-design.md) describes scoring, persistence, and a path to public use.
-- [Initial match formats](docs/match-formats.md) records the three priority presets and their explicit scoring rules.
+- [Initial match formats](docs/match-formats.md) records the four supported presets and their explicit scoring rules.
 - [Android trial](docs/android-trial.md) explains installation and what to try during a practice match.
 - [Development](docs/development.md) covers builds, tests, storage, and remaining public-release work.
 
 ## Current stage
 
-The Android application implements Quick endings with stroke selection, three confirmed match presets, player profiles, offline match history and recovery, serve and return observations, stroke statistics, point details and edits, undo, active-stage score corrections, suspension, retirement, and abandonment. It includes JSON backup/restore and PDF/CSV report exports.
+The Android application implements Quick endings with stroke selection, four match presets, player profiles, offline match history and recovery, serve and return observations, stroke statistics, point details and edits, undo, active-stage score corrections, suspension, retirement, and abandonment. It includes JSON backup/restore and PDF/CSV report exports.
 
 SQLite saves each recording action before the app advances the score. Pending stroke selections and serve observations are also persisted. The existing JavaScript and Flutter projects remain reference material.
 

@@ -18,6 +18,10 @@ export const presets = {
     version: 1, id: 'normal-match-tiebreak', name: 'Two normal sets and a deciding match tie-break', serviceLet: 'replay',
     stages: [normal, normal, { kind: 'match-tie-break', tieBreak: matchTieBreak }],
   },
+  'normal-best-of-three': {
+    version: 1, id: 'normal-best-of-three', name: 'Best of 3 normal sets', serviceLet: 'replay',
+    stages: [normal, normal, normal],
+  },
 } as const satisfies Record<string, MatchFormat>;
 
 export type PresetId = keyof typeof presets;

@@ -6,7 +6,7 @@ The first Android build is for a practice-match trial of the courtside recording
 
 Copy `output/android/tennis-tracker-preview.apk` to your Android phone and open it. Android may ask you to allow installation from the app you used to open the file. Once installed, open Tennis Notebook.
 
-Tap Start recording your first match in an empty library or New match & event once you have saved matches. Enter your player's name and the opponent, add event details below Players, select a format and recording depth, then save the match. Open it and choose Start match when play is about to begin; only then select the first server. To reuse the event details, match format and recording depth from the latest match in an event, tap Add match to event and pick the event. The three match formats and their scoring rules are confirmed in [Initial match formats](match-formats.md).
+Tap Start recording your first match in an empty library or New match & event once you have saved matches. Enter your player's name and the opponent, add event details below Players, select a format and recording depth, then save the match. Open it and choose Start match when play is about to begin; only then select the first server. To reuse the event details, match format and recording depth from the latest match in an event, tap Add match to event and pick the event. The four match formats and their scoring rules are described in [Initial match formats](match-formats.md).
 
 Use Match details in the match header to correct the opponent's name or update the event, date, round, venue, surface, indoor or outdoor setting, and conditions during or after the match. This also works from a saved match's Match details option before it starts. Correcting a name keeps the recorded score, points and notes.
 
@@ -34,7 +34,7 @@ PDF report and Export points CSV are available from a match's Report tab. Sharin
 
 ## Current scope
 
-The first build supports singles and the three confirmed match formats, profiles for tracked players, opponents stored with each match, tournament/date grouping, surface and conditions, three recording depths, stroke statistics, serve/return observations, notes and call tags, history, edits, undo, active-stage score corrections, suspension, retirement, abandonment, backups, and report exports.
+The first build supports singles and the four match formats, profiles for tracked players, opponents stored with each match, tournament/date grouping, surface and conditions, three recording depths, stroke statistics, serve/return observations, notes and call tags, history, edits, undo, active-stage score corrections, suspension, retirement, abandonment, backups, and report exports.
 
 It does not yet include accounts, cloud synchronization, coach access, timed formats, doubles service order, editing completed set scores, automatic change-of-ends reminders, or a custom format editor. Those remain separate work from testing the core recording experience.
 

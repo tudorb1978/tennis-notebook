@@ -4,7 +4,7 @@ The first version should let a parent follow a junior match on an Android phone 
 
 ## Match setup
 
-Select the tracked player and opponent, then choose a saved format or customize one. The initial presets are one FAST4 set, two FAST4 sets with a deciding match tie-break, and two normal sets with a deciding match tie-break. Show a plain-language summary of the actual rules before starting. A format name alone must not silently determine ambiguous rules.
+Select the tracked player and opponent, then choose a saved format or customize one. The presets are one FAST4 set, two FAST4 sets with a deciding match tie-break, two normal sets with a deciding match tie-break, and best of three full normal sets. Show a plain-language summary of the actual rules before starting. A format name alone must not silently determine ambiguous rules.
 
 Choose the recording depth and save the match before play begins. Ask for the first server only when starting the saved match, which also starts its clock. Tournament, round, date, venue, court surface, indoor or outdoor conditions, weather, ball stage, and notes belong to the match but can be added later. Setup should not require completing every optional field.
 

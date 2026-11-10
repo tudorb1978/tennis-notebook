@@ -111,6 +111,7 @@ const setupFormats: { id: PresetId; title: string; detail: string }[] = [
   { id: 'fast4-single', title: 'One FAST4 set', detail: 'One set to 4 games' },
   { id: 'fast4-match-tiebreak', title: 'FAST4 sets + match tie-break', detail: 'Sets to 4 games · deciding tie-break to 10' },
   { id: 'normal-match-tiebreak', title: 'Normal sets + match tie-break', detail: 'Sets to 6 games · deciding tie-break to 10' },
+  { id: 'normal-best-of-three', title: 'Best of 3 normal sets', detail: 'First to two sets · full deciding set' },
 ];
 
 const modeDetails: Record<RecordingMode, string> = {
@@ -198,8 +199,8 @@ export function SetupForm({ players, event, preferredPlayerId, busy, onSave }: {
         {setupFormats.map(({ id, title, detail }) => <SetupOption key={id} testID={id} title={title} detail={detail}
           selected={values.preset === id} disabled={busy} onPress={() => update('preset', id)} />)}
       </View>
-      <View style={{ backgroundColor: c.bg, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8 }}>
-        <T small muted>{values.preset.startsWith('fast4') ? 'Deciding point at deuce. Set tie-break at 3–3 to 7, two clear.' : 'Advantage games. Sets by two games. Set tie-break at 6–6 to 7, two clear.'}{values.preset !== 'fast4-single' ? ' At one set each, a match tie-break to 10, two clear.' : ''}</T>
+      <View testID="match-format-summary" style={{ backgroundColor: c.bg, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8 }}>
+        <T small muted>{values.preset.startsWith('fast4') ? 'Deciding point at deuce. Set tie-break at 3–3 to 7, two clear.' : 'Advantage games. Sets by two games. Set tie-break at 6–6 to 7, two clear.'}{values.preset.endsWith('match-tiebreak') ? ' At one set each, a match tie-break to 10, two clear.' : values.preset === 'normal-best-of-three' ? ' At one set each, play a full deciding set.' : ''}</T>
       </View>
     </Card>
     <Card>
