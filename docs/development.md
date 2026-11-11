@@ -12,9 +12,11 @@ Run `npm run web -- --localhost --port 8093` for a local browser preview, or `np
 
 The app name and Expo slug are `tennis-notebook`; both platform identifiers are `uk.tennisnotebook.app`. Native projects are generated from `app.json`. Regenerate them after identity changes; existing APKs still contain their original name and identifier.
 
+Phone and tablet configuration allows portrait/landscape rotation, iPad multitasking, and Android activity resizing. The local `plugins/withResizableActivity.cjs` plugin is applied during native generation. See [Phone and tablet support](tablet-readiness.md) for layout expectations and the device-verification checklist.
+
 Set `ANDROID_HOME` and `JAVA_HOME` for your installation, then run `bash scripts/build-android.sh`. A task-specific `GRADLE_USER_HOME` can be supplied to keep build caches separate. The script generates the native Android project from app configuration and writes the preview APK and its SHA-256 checksum under `output/android`.
 
-The build includes arm64-v8a for phones and x86_64 for emulator verification. Minimum Android API is 24. The APK is `output/android/tennis-notebook-preview.apk`, with a matching `.sha256` file. Native generated projects, caches, and signing files are excluded from source control. The generated release variant uses preview signing; do not use that signing configuration for a public store release.
+The build includes arm64-v8a for phones and x86_64 for emulator verification. Minimum Android API is 24 and target API is 36. The APK is `output/android/tennis-notebook-preview.apk`, with a matching `.sha256` file. Native generated projects, caches, and signing files are excluded from source control. The generated release variant uses preview signing; do not use that signing configuration for a public store release.
 
 ## Browser application checks
 
@@ -22,9 +24,13 @@ Playwright is a pinned development dependency. Install its browser with `npx pla
 
 The application check runs the actual Expo interface and SQLite web worker. It creates a profile and match, records and edits strokes, reloads an unfinished match and pending entry, records with network access disabled, completes sets and a deciding match tie-break, exports CSV and a backup, restores into empty browser storage, and checks duplicate imports and narrow layout.
 
+`npm run test:tablet` runs the tablet and resizable-window browser checks against the same preview. It is separate from native rotation, keyboard, sharing, and document-picker checks on iPad and Android tablets.
+
 The older tests in `tests/prototype` apply to their corresponding inline prototype versions, rather than the native application.
 
 `tests/app/android-smoke.py` installs an APK only on an explicitly selected emulator. It tests native SQLite, offline cold start, recovery of an unfinished point, persistent notes, and PDF sharing. Its reset flag is restricted to the dedicated temporary `tennis-tracker-test` AVD.
+
+See [Phone and tablet support](tablet-readiness.md) for tablet verification results and the remaining iPad and physical-device checks.
 
 PDF reports are generated locally with pdf-lib and an embedded DejaVu Sans font, independently of Android WebView or the system print renderer. The font's redistribution notice is included in the app assets. Unsupported font characters fail explicitly; CSV preserves the original text.
 

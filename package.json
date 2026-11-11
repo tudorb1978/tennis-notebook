@@ -12,6 +12,7 @@
     "android": "expo run:android",
     "web": "expo start --web",
     "test:app": "node tests/app/smoke.cjs",
+    "test:tablet": "node tests/app/tablet.cjs",
     "export:android": "expo export --platform android",
     "test": "node --test tests/domain/*.test.ts tests/storage/*.test.ts tests/application/*.test.ts tests/architecture/*.test.ts",
     "typecheck": "tsc --noEmit",

@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { replayMatch } from '../domain/history.ts';
 import type { MatchRecord, PlayerProfile } from '../storage/model.ts';
 import { Icon } from './Icon.tsx';
-import { Button, Card, Field, Heading, Notice, Row, Stack, T, useTheme } from './kit.tsx';
+import { Button, Card, Field, Heading, Notice, Row, Stack, T, useTheme, useContentWidth } from './kit.tsx';
 
 export function PlayerSettings({ players, matches, busy, onRename, onDelete }: {
   players: readonly PlayerProfile[];
@@ -13,7 +13,7 @@ export function PlayerSettings({ players, matches, busy, onRename, onDelete }: {
   onDelete: (player: PlayerProfile) => void;
 }) {
   const c = useTheme();
-  const { width } = useWindowDimensions();
+  const width = useContentWidth();
   const stacked = width < 480;
   return <Card>
     <Row style={{ flexWrap: 'nowrap', gap: 10 }}>

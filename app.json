@@ -4,7 +4,7 @@
     "slug": "tennis-notebook",
     "icon": "./assets/tennis-notebook.png",
     "version": "0.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "light",
     "scheme": "tennis-notebook",
     "android": {
@@ -13,10 +13,11 @@
       "allowBackup": true,
       "softwareKeyboardLayoutMode": "resize"
     },
-    "ios": { "bundleIdentifier": "uk.tennisnotebook.app", "supportsTablet": true },
+    "ios": { "bundleIdentifier": "uk.tennisnotebook.app", "supportsTablet": true, "requireFullScreen": false },
     "web": { "bundler": "metro", "favicon": "./assets/tennis-notebook.png" },
     "plugins": [
       "expo-sqlite",
+      "./plugins/withResizableActivity.cjs",
       ["expo-build-properties", { "android": { "compileSdkVersion": 37, "targetSdkVersion": 36 } }]
     ]
   }

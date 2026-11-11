@@ -1,6 +1,6 @@
 # tennis-notebook
 
-A courtside tennis recording app for parents and coaches, starting with Android phones. Match recording must work without an internet connection and support both quick point outcomes and more detailed serve and return observations.
+A courtside tennis recording app for parents and coaches, targeting iPhones, iPads, Android phones, and Android tablets. Match recording must work without an internet connection and support both quick point outcomes and more detailed serve and return observations.
 
 The app should eventually be usable by other families. Player and match records are private by default; making the app public does not publish its users' data.
 
@@ -22,13 +22,14 @@ Builds using this identifier install separately from earlier `uk.tennistracker.a
 - Restorable backups and portable exports in the first usable release.
 - Accounts, cloud synchronization, and coach access as later additions to the same architecture.
 
-The first device is an Android phone. iOS remains a future target. Package versions and additional libraries will be selected when implementation starts.
+The first native trial device is an Android phone. Phone and tablet layouts share the application operations; native iOS and tablet verification are tracked separately.
 
 ## Design documents
 
 - [Courtside workflow](docs/courtside-workflow.md) describes setup, recording, corrections, and reports.
 - [Technical design](docs/technical-design.md) describes scoring, persistence, and a path to public use.
 - [Application structure](docs/architecture.md) explains the boundaries between rules, application operations, layouts, and platform adapters.
+- [Phone and tablet support](docs/tablet-readiness.md) describes rotation, window resizing, adaptive layouts, and native verification still required.
 - [Initial match formats](docs/match-formats.md) records the four supported presets and their explicit scoring rules.
 - [Android trial](docs/android-trial.md) explains installation and what to try during a practice match.
 - [Development](docs/development.md) covers builds, tests, storage, and remaining public-release work.

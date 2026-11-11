@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useMemo } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { createContext, useContext, useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { Side } from '../domain/scoring.ts';
 import { Icon } from './Icon.tsx';
@@ -66,6 +66,36 @@ export function Toggle({ label, checked, onChange, accessibilityLabel = label, s
 }
 export function Notice({ children, error = false }: { children: React.ReactNode; error?: boolean }) { const c = useTheme(); return <View accessibilityRole={error ? 'alert' : undefined} style={{ padding: 12, borderRadius: 10, backgroundColor: c.soft, borderLeftWidth: 3, borderLeftColor: error ? c.error : c.accent }}><T small style={{ color: error ? c.error : c.ink }}>{children}</T></View>; }
 export function Divider() { const c = useTheme(); return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.line }} />; }
-export function useLayout() {
-  const c = useTheme(); return useMemo(() => StyleSheet.create({ root: { flex: 1, backgroundColor: c.bg }, content: { padding: 18, paddingTop: 10, gap: 16, paddingBottom: 28, width: '100%', maxWidth: 620, alignSelf: 'center' }, header: { paddingHorizontal: 18, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', maxWidth: 620, alignSelf: 'center' }, two: { flexDirection: 'row', gap: 10 }, cell: { flex: 1, minWidth: 0 }, footer: { borderTopWidth: 1, borderColor: c.line, backgroundColor: c.card }, footerContent: { paddingVertical: 8, paddingHorizontal: 18, flexDirection: 'row', gap: 7, width: '100%', maxWidth: 620, alignSelf: 'center' }, modal: { flex: 1, backgroundColor: '#00000066', justifyContent: 'center', padding: 15 }, sheet: { width: '100%', maxWidth: 600, maxHeight: '95%', alignSelf: 'center', borderRadius: 20, backgroundColor: c.bg, overflow: 'hidden' } }), [c]);
+// Responsive children use their allocated content width, including in dialogs
+// and split-screen windows, rather than the physical device's dimensions.
+const ContentWidth = createContext<number | null>(null);
+export function Content({ children, style, testID }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string }) {
+  const [width, setWidth] = useState<number | null>(null);
+  const inherited = useContentWidth();
+  return <View testID={testID} style={[{ width: '100%', minWidth: 0, gap: 16 }, style]}
+    onLayout={event => setWidth(event.nativeEvent.layout.width)}>
+    <ContentWidth.Provider value={width ?? inherited}>{children}</ContentWidth.Provider>
+  </View>;
+}
+export function useContentWidth() {
+  const measured = useContext(ContentWidth);
+  const { width } = useWindowDimensions();
+  return measured ?? Math.max(0, Math.min(width, 620) - 36);
+}
+export function useLayout({ wide = false }: { wide?: boolean } = {}) {
+  const c = useTheme();
+  const { width, height } = useWindowDimensions();
+  const padding = width >= 768 ? 24 : 18;
+  const maxWidth = wide ? 1120 : 620;
+  return useMemo(() => StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
+    content: { padding, paddingTop: 10, gap: 16, paddingBottom: 28, width: '100%', maxWidth, alignSelf: 'center' },
+    dialogContent: { padding: 18, paddingTop: 10, gap: 16, paddingBottom: 24, width: '100%', alignSelf: 'center' },
+    header: { paddingHorizontal: padding, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', maxWidth, alignSelf: 'center' },
+    two: { flexDirection: 'row', gap: 10 }, cell: { flex: 1, minWidth: 0 },
+    footer: { borderTopWidth: 1, borderColor: c.line, backgroundColor: c.card },
+    footerContent: { paddingVertical: 8, paddingHorizontal: padding, flexDirection: 'row', gap: 7, width: '100%', maxWidth, alignSelf: 'center' },
+    modal: { flex: 1, backgroundColor: '#00000066', justifyContent: 'center', padding: height < 500 ? 8 : 15 },
+    sheet: { width: '100%', maxWidth: 680, maxHeight: '100%', minHeight: 0, flexShrink: 1, alignSelf: 'center', borderRadius: 20, backgroundColor: c.bg, overflow: 'hidden' },
+  }), [c, padding, maxWidth, height]);
 }

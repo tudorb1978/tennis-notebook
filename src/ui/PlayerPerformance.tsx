@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text, View, useWindowDimensions } from 'react-native';
 import { isMatchDate, localDate, monthsBefore } from '../domain/matchDates.ts';
 import { performanceCountLabels, playerPerformance } from '../reports/playerPerformance.ts';
 import type { PlayerPerformanceReport } from '../reports/playerPerformance.ts';
@@ -8,7 +8,7 @@ import type { MatchGroup } from '../storage/matchGroups.ts';
 import type { MatchRecord, PlayerProfile } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
 import { Icon } from './Icon.tsx';
-import { Button, Card, Choices, Eyebrow, Field, Notice, Stack, T, useTheme } from './kit.tsx';
+import { Button, Card, Choices, Eyebrow, Field, Notice, Stack, T, useContentWidth, useTheme } from './kit.tsx';
 import { PressurePoints, StatsTable } from './Stats.tsx';
 
 const periods = [
@@ -30,6 +30,9 @@ export function PlayerPerformance({ players, matches, playerId, event, hasEvents
   onExport: (report: PlayerPerformanceReport) => void;
 }) {
   const c = useTheme();
+  const width = useContentWidth();
+  const { fontScale } = useWindowDimensions();
+  const columns = width >= 900 && fontScale <= 1.3;
   const [period, setPeriod] = useState<Period>('all');
   const today = localDate();
   const [customFrom, setCustomFrom] = useState(() => monthsBefore(today, 1));
@@ -60,45 +63,51 @@ export function PlayerPerformance({ players, matches, playerId, event, hasEvents
         <T small style={{ color: c.courtSub }}>Review totals across matches.</T>
       </View>
     </View>
-    <Card>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Icon name="sliders" size={18} color={c.accent} />
-        <T bold>Report filters</T>
-      </View>
-      <Choices label="Player" value={playerId} options={players.map(player => ({ value: player.id, label: player.name }))} onChange={onPlayer} disabled={busy} />
-      {hasEvents && <Button label={eventLabel} disabled={busy} onPress={onChooseEvent} style={{ backgroundColor: c.bg }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <Icon name="calendar" size={17} color={c.accent} />
-          <T small bold style={{ flex: 1, minWidth: 0 }}>{eventLabel}</T>
-          <Icon name="chevron-right" size={16} color={c.sub} />
-        </View>
-      </Button>}
-      <Choices<Period> label="Period" value={period} options={periods} onChange={setPeriod} disabled={busy} />
-      {period === 'custom' && <View style={{ gap: 10, borderTopWidth: 1, borderColor: c.line, paddingTop: 10 }}>
-        <Field label="From (YYYY-MM-DD)" value={customFrom} onChange={setCustomFrom} maxLength={10} />
-        <Field label="To (YYYY-MM-DD)" value={customTo} onChange={setCustomTo} maxLength={10} />
-      </View>}
-    </Card>
-    {!report ? <Notice>Enter valid dates with the start date on or before the end date.</Notice>
-      : report.matchCount === 0 ? <Notice>No matches for this player in the selected event and period.</Notice>
-      : <>
-        <Card style={{ backgroundColor: c.soft, gap: 6 }}>
-          <Eyebrow>Report scope</Eyebrow>
-          <T small muted>{report.scope}</T>
-          {performanceCountLabels(report).map((label, index) => <T key={label} small={index !== 0} bold={index === 0}
-            style={index === 0 ? { fontSize: 20, lineHeight: 26, letterSpacing: -0.4 } : { fontVariant: ['tabular-nums'] }}>{label}</T>)}
-          <Button icon="download" disabled={busy} onPress={() => onExport(report)} style={{ marginTop: 6, alignSelf: 'flex-start' }}>Export player PDF</Button>
-        </Card>
-        <PressurePoints names={[report.name]} stats={[report.stats]} />
-        <StatsTable name={report.name} stats={report.stats} />
-        {report.hasScoreCorrections && <Notice>Some matches contain score corrections. Statistics use recorded observations only.</Notice>}
-        {report.noteSummary.map(section => <Card key={section.title} style={{ gap: 7 }}>
+    <View testID="player-report-columns" style={{ flexDirection: columns ? 'row' : 'column', alignItems: 'flex-start', gap: 16 }}>
+      <View testID="player-report-filters" style={{ width: columns ? 300 : '100%', minWidth: 0 }}>
+        <Card>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Icon name="note" size={18} color={c.accent} />
-            <T bold style={{ flex: 1, minWidth: 0 }}>{section.title}</T>
+            <Icon name="sliders" size={18} color={c.accent} />
+            <T bold>Report filters</T>
           </View>
-          {section.lines.map(line => <T key={line} small>{line}</T>)}
-        </Card>)}
-      </>}
+          <Choices label="Player" value={playerId} options={players.map(player => ({ value: player.id, label: player.name }))} onChange={onPlayer} disabled={busy} />
+          {hasEvents && <Button label={eventLabel} disabled={busy} onPress={onChooseEvent} style={{ backgroundColor: c.bg }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <Icon name="calendar" size={17} color={c.accent} />
+              <T small bold style={{ flex: 1, minWidth: 0 }}>{eventLabel}</T>
+              <Icon name="chevron-right" size={16} color={c.sub} />
+            </View>
+          </Button>}
+          <Choices<Period> label="Period" value={period} options={periods} onChange={setPeriod} disabled={busy} />
+          {period === 'custom' && <View style={{ gap: 10, borderTopWidth: 1, borderColor: c.line, paddingTop: 10 }}>
+            <Field label="From (YYYY-MM-DD)" value={customFrom} onChange={setCustomFrom} maxLength={10} />
+            <Field label="To (YYYY-MM-DD)" value={customTo} onChange={setCustomTo} maxLength={10} />
+          </View>}
+        </Card>
+      </View>
+      <View testID="player-report-results" style={{ width: columns ? undefined : '100%', flex: columns ? 1 : undefined, minWidth: 0, gap: 14 }}>
+        {!report ? <Notice>Enter valid dates with the start date on or before the end date.</Notice>
+          : report.matchCount === 0 ? <Notice>No matches for this player in the selected event and period.</Notice>
+          : <>
+            <Card style={{ backgroundColor: c.soft, gap: 6 }}>
+              <Eyebrow>Report scope</Eyebrow>
+              <T small muted>{report.scope}</T>
+              {performanceCountLabels(report).map((label, index) => <T key={label} small={index !== 0} bold={index === 0}
+                style={index === 0 ? { fontSize: 20, lineHeight: 26, letterSpacing: -0.4 } : { fontVariant: ['tabular-nums'] }}>{label}</T>)}
+              <Button icon="download" disabled={busy} onPress={() => onExport(report)} style={{ marginTop: 6, alignSelf: 'flex-start' }}>Export player PDF</Button>
+            </Card>
+            <PressurePoints names={[report.name]} stats={[report.stats]} />
+            <StatsTable name={report.name} stats={report.stats} />
+            {report.hasScoreCorrections && <Notice>Some matches contain score corrections. Statistics use recorded observations only.</Notice>}
+            {report.noteSummary.map(section => <Card key={section.title} style={{ gap: 7 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Icon name="note" size={18} color={c.accent} />
+                <T bold style={{ flex: 1, minWidth: 0 }}>{section.title}</T>
+              </View>
+              {section.lines.map(line => <T key={line} small>{line}</T>)}
+            </Card>)}
+          </>}
+      </View>
+    </View>
   </Stack>;
 }

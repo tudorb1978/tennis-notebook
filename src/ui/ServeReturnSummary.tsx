@@ -4,7 +4,7 @@ import type { PointObservations } from '../domain/points.ts';
 import { other } from '../domain/scoring.ts';
 import type { Side } from '../domain/scoring.ts';
 import { strokeNames } from '../reports/report.ts';
-import { Card, PlayerBadge, Row, T, useTheme } from './kit.tsx';
+import { Card, PlayerBadge, Row, T, useTheme, useContentWidth } from './kit.tsx';
 
 export function ServeReturnSummary({ observations, names, server, lets = 0, showReturn = true }: {
   observations: PointObservations;
@@ -14,7 +14,8 @@ export function ServeReturnSummary({ observations, names, server, lets = 0, show
   showReturn?: boolean | undefined;
 }) {
   const c = useTheme();
-  const { width, fontScale } = useWindowDimensions();
+  const { fontScale } = useWindowDimensions();
+  const width = useContentWidth();
   const sideBySide = showReturn && width >= 380 && fontScale <= 1.15;
   const secondServe = observations.secondServe === 'unknown' ? 'not recorded' : observations.secondServe;
   const serve = observations.firstServe === 'in' ? 'First serve in'

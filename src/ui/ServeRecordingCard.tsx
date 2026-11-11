@@ -4,7 +4,7 @@ import type { PointObservations } from '../domain/points.ts';
 import { other } from '../domain/scoring.ts';
 import type { Side } from '../domain/scoring.ts';
 import type { ServeEntryStep } from '../domain/serveEntry.ts';
-import { Button, Card, PlayerBadge, Row, T, playerBadgeColors, useTheme } from './kit.tsx';
+import { Button, Card, PlayerBadge, Row, T, playerBadgeColors, useTheme, useContentWidth } from './kit.tsx';
 import { ServeReturnSummary } from './ServeReturnSummary.tsx';
 
 const optionRow = { flexDirection: 'row', gap: 7 } as const;
@@ -28,7 +28,8 @@ export function ServeRecordingCard({ step, names, server, observations, lets, bu
   onEnding: (ending: 'ace' | 'double-fault') => void;
 }) {
   const c = useTheme();
-  const { width, fontScale } = useWindowDimensions();
+  const { fontScale } = useWindowDimensions();
+  const width = useContentWidth();
   const serving = step === 'first-serve' || step === 'second-serve';
   const actor = serving ? server : other(server);
   const { backgroundColor, borderColor, ink } = playerBadgeColors(c, actor);

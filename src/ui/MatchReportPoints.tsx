@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { PointByPointEntry, PointByPointStage } from '../reports/pointByPoint.ts';
 import { Icon } from './Icon.tsx';
-import { Button, Card, Row, Stack, T, useTheme } from './kit.tsx';
+import { Button, Card, Row, Stack, T, useTheme, useContentWidth } from './kit.tsx';
 
 type PointFilter = 'all' | 'notable';
 type Props = {
@@ -22,7 +22,8 @@ function isNotable({ labels, notes }: PointByPointEntry) {
 
 export function MatchReportPoints({ stages, names, renderStats, renderActions, initialFilter = 'all' }: Props) {
   const c = useTheme();
-  const { width, fontScale } = useWindowDimensions();
+  const { fontScale } = useWindowDimensions();
+  const width = useContentWidth();
   const splitRows = width >= 375 && fontScale <= 1.15;
   const [selected, selectStage] = useState(() => initialFilter === 'notable'
     ? Math.max(0, stages.findIndex(({ points }) => points.some(isNotable)))

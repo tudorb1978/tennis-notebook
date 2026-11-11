@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text, View, useWindowDimensions } from 'react-native';
 import type { MatchProjection } from '../domain/history.ts';
 import { buildPointByPoint } from '../reports/pointByPoint.ts';
 import { pointNoteSummary } from '../reports/pointNotes.ts';
 import { timingLabels } from '../reports/report.ts';
 import type { MatchRecord } from '../storage/model.ts';
 import { Icon } from './Icon.tsx';
-import { Button, Card, Divider, Eyebrow, Heading, Notice, Row, Stack, T, useTheme } from './kit.tsx';
+import { Button, Card, Divider, Eyebrow, Heading, Notice, Row, Stack, T, useContentWidth, useTheme } from './kit.tsx';
 import { MatchReportPoints } from './MatchReportPoints.tsx';
 import { MatchReportStats } from './MatchReportStats.tsx';
 
@@ -24,6 +24,9 @@ export function MatchReport({ record, projection, scoreboard, busy, onExportPDF,
   scrollToTop: () => void;
 }) {
   const c = useTheme();
+  const width = useContentWidth();
+  const { fontScale } = useWindowDimensions();
+  const columns = width >= 900 && fontScale <= 1.3;
   const [section, setSection] = useState<Section>('overview');
   const [initialFilter, setInitialFilter] = useState<'all' | 'notable'>('all');
   const [yourPlayer, opponent] = record.players;
@@ -67,48 +70,52 @@ export function MatchReport({ record, projection, scoreboard, busy, onExportPDF,
         return entry ? renderPointActions(entry) : null;
       }}
       renderStats={(stats, title) => <MatchReportStats names={names} stats={stats} title={`${title} stats`} />}
-    /> : <>
-      <MatchReportStats title="Match stats" names={names} stats={projection.stats} showPressure />
-      <Card style={{ gap: 9 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Row><Icon name="note" color={c.accent} /><T bold>Match notes</T></Row>
-          <Button compact icon={matchNotes ? 'edit' : 'plus'} style={{ paddingHorizontal: 8 }} disabled={busy} onPress={onEditNotes}>
-            {matchNotes ? 'Edit match notes' : 'Add match notes'}
-          </Button>
-        </Row>
-        {matchNotes ? <T>{matchNotes}</T> : <T small muted>Add observations about the match as a whole.</T>}
-      </Card>
-      <Card style={{ gap: 12 }}>
-        <Row>
-          <View style={{ padding: 7, backgroundColor: c.soft, borderRadius: 8 }}>
-            <Icon name="record" color={c.accent} size={16} />
-          </View>
-          <T bold>Point notes summary</T>
-        </Row>
-        {noteSummary.length ? noteSummary.map(({ title, lines }, i) => <React.Fragment key={title}>
-          {i > 0 && <Divider />}
-          <View style={{ gap: 4 }}>
-            <T small bold>{title}</T>
-            {lines.map(line => <T key={line} small muted>{line}</T>)}
-          </View>
-        </React.Fragment>) : <T small muted>Rally, call and player observations will appear here as you add them.</T>}
-        {notableCount > 0 && <Button compact icon="chevron-right" onPress={() => switchSection('points', 'notable')}>
-          {`View notable points (${notableCount})`}
-        </Button>}
-      </Card>
-      <Card style={{ gap: 9 }}>
-        <Row><Icon name="calendar" color={c.accent} /><T bold>Match details</T></Row>
-        <T small bold>{record.date} · {record.format.name}</T>
-        {details ? <T small muted>{details}</T> : null}
-        {times.length > 0 && <>
-          <Divider />
-          <Eyebrow>Match timing</Eyebrow>
-          <Row style={{ columnGap: 14, rowGap: 2 }}>
-            {times.map(time => <Text key={time} style={{ color: c.sub, fontSize: 13, lineHeight: 19, fontVariant: ['tabular-nums'] }}>{time}</Text>)}
+    /> : <View testID="match-report-columns" style={{ flexDirection: columns ? 'row' : 'column', alignItems: 'flex-start', gap: 16 }}>
+      <View testID="match-report-primary" style={{ width: columns ? undefined : '100%', flex: columns ? 1.3 : undefined, minWidth: 0 }}>
+        <MatchReportStats title="Match stats" names={names} stats={projection.stats} showPressure />
+      </View>
+      <View testID="match-report-secondary" style={{ width: columns ? undefined : '100%', flex: columns ? 1 : undefined, minWidth: 0, gap: 14 }}>
+        <Card style={{ gap: 9 }}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Row><Icon name="note" color={c.accent} /><T bold>Match notes</T></Row>
+            <Button compact icon={matchNotes ? 'edit' : 'plus'} style={{ paddingHorizontal: 8 }} disabled={busy} onPress={onEditNotes}>
+              {matchNotes ? 'Edit match notes' : 'Add match notes'}
+            </Button>
           </Row>
-        </>}
-        <Button compact icon="download" style={{ alignSelf: 'flex-start', paddingHorizontal: 10 }} disabled={busy} onPress={onExportCSV}>Export points CSV</Button>
-      </Card>
-    </>}
+          {matchNotes ? <T>{matchNotes}</T> : <T small muted>Add observations about the match as a whole.</T>}
+        </Card>
+        <Card style={{ gap: 12 }}>
+          <Row>
+            <View style={{ padding: 7, backgroundColor: c.soft, borderRadius: 8 }}>
+              <Icon name="record" color={c.accent} size={16} />
+            </View>
+            <T bold>Point notes summary</T>
+          </Row>
+          {noteSummary.length ? noteSummary.map(({ title, lines }, i) => <React.Fragment key={title}>
+            {i > 0 && <Divider />}
+            <View style={{ gap: 4 }}>
+              <T small bold>{title}</T>
+              {lines.map(line => <T key={line} small muted>{line}</T>)}
+            </View>
+          </React.Fragment>) : <T small muted>Rally, call and player observations will appear here as you add them.</T>}
+          {notableCount > 0 && <Button compact icon="chevron-right" onPress={() => switchSection('points', 'notable')}>
+            {`View notable points (${notableCount})`}
+          </Button>}
+        </Card>
+        <Card style={{ gap: 9 }}>
+          <Row><Icon name="calendar" color={c.accent} /><T bold>Match details</T></Row>
+          <T small bold>{record.date} · {record.format.name}</T>
+          {details ? <T small muted>{details}</T> : null}
+          {times.length > 0 && <>
+            <Divider />
+            <Eyebrow>Match timing</Eyebrow>
+            <Row style={{ columnGap: 14, rowGap: 2 }}>
+              {times.map(time => <Text key={time} style={{ color: c.sub, fontSize: 13, lineHeight: 19, fontVariant: ['tabular-nums'] }}>{time}</Text>)}
+            </Row>
+          </>}
+          <Button compact icon="download" style={{ alignSelf: 'flex-start', paddingHorizontal: 10 }} disabled={busy} onPress={onExportCSV}>Export points CSV</Button>
+        </Card>
+      </View>
+    </View>}
   </Stack>;
 }

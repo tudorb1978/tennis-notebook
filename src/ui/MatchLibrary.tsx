@@ -7,7 +7,7 @@ import type { MatchGroup } from '../storage/matchGroups.ts';
 import type { MatchRecord, PlayerProfile } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
 import { Icon } from './Icon.tsx';
-import { Button, Card, Choices, Eyebrow, Row, Stack, T, useTheme } from './kit.tsx';
+import { Button, Card, Choices, Eyebrow, Row, Stack, T, useContentWidth, useTheme } from './kit.tsx';
 
 const statusLabels: Record<MatchScore['status'], string> = {
   'in-progress': 'In progress',
@@ -36,8 +36,10 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
   onOpenMatch: (id: string) => void;
 }) {
   const c = useTheme();
-  const { width, fontScale } = useWindowDimensions();
+  const width = useContentWidth();
+  const { fontScale } = useWindowDimensions();
   const wide = width >= 540 && fontScale <= 1.2;
+  const grid = width >= 800 && fontScale <= 1.3;
   const empty = groups.length === 0;
   const visibleGroups = groups.map(group => ({
     group, matches: group.matches.filter(match => filter === 'all' || match.players[0].id === filter),
@@ -104,33 +106,35 @@ export function MatchLibrary({ groups, players, filter, busy, available, onFilte
           </View>
           {group.named && <Button quiet compact icon="chart" disabled={busy} onPress={() => onPerformance(group)}>Event performance</Button>}
         </Row>
-        {matches.map(match => {
-          const projection = match.firstServer === null ? null : replayMatch(match.format, match.firstServer, match.events);
-          const active = projection?.score.status === 'in-progress' || projection?.score.status === 'suspended';
-          const title = `${match.players[0].name} vs ${match.players[1].name}`;
-          const result = projection ? resultLabel(projection.score) : null;
-          const pointCount = projection?.points.length;
-          const status = projection ? statusLabels[projection.score.status] : 'Not started';
-          return <Button key={match.id} label={result ? `${title}, ${status}, ${result}` : `${title}, ${status}`} disabled={busy} onPress={() => onOpenMatch(match.id)}
-            style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.bg, paddingHorizontal: 12, paddingVertical: 12 }}>
-            <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-              <T bold style={{ fontSize: 16, lineHeight: 22 }}>{title}</T>
-              {projection && <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10 }}>
-                {resultParts(projection.score).map(({ score, setTieBreak }, index) =>
-                  <Text key={index} style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 26, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>
-                    {score}{setTieBreak && <Text style={{ fontSize: 14 }}>{setTieBreak}</Text>}
-                  </Text>)}
-              </View>}
-              <T small muted>{match.date}{pointCount === undefined ? '' : ` · ${pointCount} ${pointCount === 1 ? 'recorded point' : 'recorded points'}`}</T>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <View style={{ backgroundColor: active ? c.soft : c.card, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 7 }}>
-                <T small bold style={{ color: active ? c.ink : c.sub }}>{status}</T>
+        <View testID={`match-grid-${group.key}`} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', gap: 8 }}>
+          {matches.map(match => {
+            const projection = match.firstServer === null ? null : replayMatch(match.format, match.firstServer, match.events);
+            const active = projection?.score.status === 'in-progress' || projection?.score.status === 'suspended';
+            const title = `${match.players[0].name} vs ${match.players[1].name}`;
+            const result = projection ? resultLabel(projection.score) : null;
+            const pointCount = projection?.points.length;
+            const status = projection ? statusLabels[projection.score.status] : 'Not started';
+            return <Button key={match.id} testID={`match-card-${match.id}`} label={result ? `${title}, ${status}, ${result}` : `${title}, ${status}`} disabled={busy} onPress={() => onOpenMatch(match.id)}
+              style={{ width: grid ? (width - 40) / 2 : '100%', flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.bg, paddingHorizontal: 12, paddingVertical: 12 }}>
+              <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
+                <T bold style={{ fontSize: 16, lineHeight: 22 }}>{title}</T>
+                {projection && <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10 }}>
+                  {resultParts(projection.score).map(({ score, setTieBreak }, index) =>
+                    <Text key={index} style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 26, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>
+                      {score}{setTieBreak && <Text style={{ fontSize: 14 }}>{setTieBreak}</Text>}
+                    </Text>)}
+                </View>}
+                <T small muted>{match.date}{pointCount === undefined ? '' : ` · ${pointCount} ${pointCount === 1 ? 'recorded point' : 'recorded points'}`}</T>
               </View>
-              <Icon name="chevron-right" size={15} color={c.sub} />
-            </View>
-          </Button>;
-        })}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <View style={{ backgroundColor: active ? c.soft : c.card, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 7 }}>
+                  <T small bold style={{ color: active ? c.ink : c.sub }}>{status}</T>
+                </View>
+                <Icon name="chevron-right" size={15} color={c.sub} />
+              </View>
+            </Button>;
+          })}
+        </View>
       </View>)}
     </Card>
     {empty && <Card style={{ gap: 14, padding: 17 }}>
