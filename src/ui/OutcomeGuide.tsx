@@ -27,7 +27,6 @@ export function OutcomeGuide({ onClose }: { onClose: () => void }) {
       </View>)}
     </Card>
     <T small muted>These definitions are guidelines. Choose the outcome that best fits what you saw and keep recording.</T>
-    <T small muted>Adapted from the Simple Match Chart by David H Gabb Tennis Services.</T>
     <Button primary onPress={onClose}>Done</Button>
   </Stack>;
 }
