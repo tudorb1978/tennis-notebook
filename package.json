@@ -16,6 +16,13 @@
     "export:android": "expo export --platform android",
     "test": "node --test tests/domain/*.test.ts tests/storage/*.test.ts tests/application/*.test.ts tests/architecture/*.test.ts",
     "typecheck": "tsc --noEmit",
+    "doctor": "expo-doctor",
+    "preflight:ios": "node scripts/ios-preflight.mjs",
+    "bundle:ios": "expo export --platform ios --output-dir output/ios-bundle",
+    "eas": "npx --yes eas-cli@27.7.2",
+    "build:ios:simulator": "npm run eas -- build --platform ios --profile simulator",
+    "build:ios:testflight": "npm run eas -- build --platform ios --profile production",
+    "submit:ios:testflight": "npm run eas -- submit --platform ios --profile production",
     "check": "npm run typecheck && npm test"
   },
   "dependencies": {
@@ -29,6 +36,7 @@
     "expo-file-system": "~58.0.13",
     "expo-keep-awake": "~58.0.3",
     "expo-sharing": "~58.0.22",
+    "expo-splash-screen": "~58.0.13",
     "expo-sqlite": "~58.0.15",
     "expo-status-bar": "~58.0.4",
     "expo-system-ui": "~58.0.7",
@@ -40,8 +48,11 @@
     "react-native-web": "^0.21.4"
   },
   "devDependencies": {
+    "@expo/eas-json": "27.7.2",
     "@types/node": "24.19.2",
     "@types/react": "~19.3.0",
+    "expo-doctor": "1.21.6",
+    "ignore": "5.3.2",
     "playwright": "1.64.1",
     "typescript": "6.0.3"
   }

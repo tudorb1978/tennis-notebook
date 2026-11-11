@@ -1,0 +1,35 @@
+{
+  "cli": {
+    "version": "27.7.2",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "node": "24.21.0",
+      "ios": {
+        "image": "auto",
+        "buildConfiguration": "Release"
+      }
+    },
+    "simulator": {
+      "extends": "base",
+      "distribution": "internal",
+      "autoIncrement": false,
+      "ios": {
+        "simulator": true,
+        "withoutCredentials": true
+      }
+    },
+    "production": {
+      "extends": "base",
+      "distribution": "store",
+      "ios": {
+        "autoIncrement": true,
+        "credentialsSource": "remote"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

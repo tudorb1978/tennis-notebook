@@ -8,6 +8,10 @@ Run `npm run check` for TypeScript, domain/storage tests, application-command te
 
 Run `npm run web -- --localhost --port 8093` for a local browser preview, or `npm start` for Expo development. The web preview uses expo-sqlite WebAssembly and cross-origin isolation headers configured in `metro.config.cjs`. It is a development preview; the Android APK contains its own JavaScript bundle for offline launch.
 
+## iPhone/iPad preparation
+
+Run `npm run doctor`, `npm run preflight:ios`, and `npm run bundle:ios` for dependency, generated native configuration, EAS schema/upload, asset, and JavaScript bundling checks. These do not compile or sign a native iOS binary. `eas.json` contains an unsigned simulator Release profile and a signed production/TestFlight profile. The project is linked to `@tudor-barbarosie/tennis-notebook`, and its first simulator cloud build succeeded on 11 November 2026 with Xcode 27.1. Simulator/device runtime testing, Apple setup, and the signed production build remain pending. See [iPhone/iPad build preparation](ios-release.md) for the build result, individual-account setup, and exact build/submission commands.
+
 ## Android build
 
 The app name and Expo slug are `tennis-notebook`; both platform identifiers are `uk.tennisnotebook.app`. Native projects are generated from `app.json`. Regenerate them after identity changes; existing APKs still contain their original name and identifier.

@@ -30,6 +30,7 @@ The first native trial device is an Android phone. Phone and tablet layouts shar
 - [Technical design](docs/technical-design.md) describes scoring, persistence, and a path to public use.
 - [Application structure](docs/architecture.md) explains the boundaries between rules, application operations, layouts, and platform adapters.
 - [Phone and tablet support](docs/tablet-readiness.md) describes rotation, window resizing, adaptive layouts, and native verification still required.
+- [iPhone/iPad build preparation](docs/ios-release.md) covers local preflight, EAS profiles, individual account setup, and the first TestFlight trial.
 - [Initial match formats](docs/match-formats.md) records the four supported presets and their explicit scoring rules.
 - [Android trial](docs/android-trial.md) explains installation and what to try during a practice match.
 - [Development](docs/development.md) covers builds, tests, storage, and remaining public-release work.

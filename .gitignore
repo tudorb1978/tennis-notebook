@@ -9,3 +9,11 @@ ios/
 *.aab
 *.keystore
 /output/
+*.ipa
+*.p8
+*.p12
+*.mobileprovision
+credentials.json
+.env
+.env.*
+!.env.example

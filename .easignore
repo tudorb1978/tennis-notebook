@@ -1,0 +1,27 @@
+# .easignore replaces .gitignore; retain the same generated-file exclusions.
+node_modules/
+.expo/
+dist/
+coverage/
+*.tsbuildinfo
+android/
+ios/
+*.apk
+*.aab
+*.keystore
+/output/
+
+# Cloud prebuild uses app.json, plugins, and checked-in source/assets.
+.git/
+.codex/
+.agents/
+.aws/
+*.log
+*.ipa
+*.p8
+*.p12
+*.mobileprovision
+credentials.json
+.env
+.env.*
+!.env.example

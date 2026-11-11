@@ -13,12 +13,52 @@
       "allowBackup": true,
       "softwareKeyboardLayoutMode": "resize"
     },
-    "ios": { "bundleIdentifier": "uk.tennisnotebook.app", "supportsTablet": true, "requireFullScreen": false },
-    "web": { "bundler": "metro", "favicon": "./assets/tennis-notebook.png" },
+    "ios": {
+      "bundleIdentifier": "uk.tennisnotebook.app",
+      "icon": "./assets/tennis-notebook-ios.png",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "requireFullScreen": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/tennis-notebook.png"
+    },
     "plugins": [
       "expo-sqlite",
       "./plugins/withResizableActivity.cjs",
-      ["expo-build-properties", { "android": { "compileSdkVersion": 37, "targetSdkVersion": 36 } }]
-    ]
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 37,
+            "targetSdkVersion": 36
+          },
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "ios": {
+            "image": "./assets/tennis-notebook-splash.png",
+            "imageWidth": 200,
+            "backgroundColor": "#f4f5ed",
+            "resizeMode": "contain"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9593c315-7eab-4491-9215-9618a293d286"
+      }
+    },
+    "owner": "tudor-barbarosie"
   }
 }
