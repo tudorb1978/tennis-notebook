@@ -1,19 +1,19 @@
 {
   "expo": {
-    "name": "Tennis Notebook",
-    "slug": "tennis-tracker",
+    "name": "tennis-notebook",
+    "slug": "tennis-notebook",
     "icon": "./assets/tennis-notebook.png",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "scheme": "tennistracker",
+    "scheme": "tennis-notebook",
     "android": {
-      "package": "uk.tennistracker.app",
+      "package": "uk.tennisnotebook.app",
       "versionCode": 1,
       "allowBackup": true,
       "softwareKeyboardLayoutMode": "resize"
     },
-    "ios": { "bundleIdentifier": "uk.tennistracker.app", "supportsTablet": true },
+    "ios": { "bundleIdentifier": "uk.tennisnotebook.app", "supportsTablet": true },
     "web": { "bundler": "metro", "favicon": "./assets/tennis-notebook.png" },
     "plugins": [
       "expo-sqlite",

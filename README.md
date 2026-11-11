@@ -1,8 +1,18 @@
-# Tennis Notebook
+# tennis-notebook
 
 A courtside tennis recording app for parents and coaches, starting with Android phones. Match recording must work without an internet connection and support both quick point outcomes and more detailed serve and return observations.
 
 The app should eventually be usable by other families. Player and match records are private by default; making the app public does not publish its users' data.
+
+## App identity
+
+- App name, Expo slug, npm package, and local folder: `tennis-notebook`.
+- Android application ID and iOS bundle identifier: `uk.tennisnotebook.app`.
+- URL scheme: `tennis-notebook`.
+
+Android application IDs cannot contain hyphens, so the platform identifiers use `tennisnotebook`. The existing visual wordmark uses the stylized spelling “Tennis Notebook”.
+
+Builds using this identifier install separately from earlier `uk.tennistracker.app` previews. Back up records in the old app and restore them in the renamed app before removing the old installation. The SQLite filename and backup format marker retain `tennis-tracker` for data compatibility.
 
 ## Technology decisions
 
@@ -18,6 +28,7 @@ The first device is an Android phone. iOS remains a future target. Package versi
 
 - [Courtside workflow](docs/courtside-workflow.md) describes setup, recording, corrections, and reports.
 - [Technical design](docs/technical-design.md) describes scoring, persistence, and a path to public use.
+- [Application structure](docs/architecture.md) explains the boundaries between rules, application operations, layouts, and platform adapters.
 - [Initial match formats](docs/match-formats.md) records the four supported presets and their explicit scoring rules.
 - [Android trial](docs/android-trial.md) explains installation and what to try during a practice match.
 - [Development](docs/development.md) covers builds, tests, storage, and remaining public-release work.
@@ -30,7 +41,7 @@ SQLite saves each recording action before the app advances the score. Pending st
 
 ## Running the domain checks
 
-Use Node.js 24.12 or later. Install dependencies with `npm ci`, then run `npm run check` for type checking and domain/storage tests. `npm test` runs the tests alone. The actual application check is `tests/app/smoke.cjs`; the earlier interface checks remain separately in `tests/prototype`.
+Use Node.js 24.12 or later. Install dependencies with `npm ci`, then run `npm run check` for type checking and domain, storage, application, and dependency-boundary tests. `npm test` runs the tests alone. The actual application check is `tests/app/smoke.cjs`; the earlier interface checks remain separately in `tests/prototype`.
 
 The source in `src/domain` has no dependency on Expo, React Native, SQLite, or cloud services. It can be connected to the Android interface without changing the tennis rules.
 

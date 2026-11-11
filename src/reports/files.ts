@@ -9,7 +9,8 @@ import type { MatchPDFVariant, ReportAssets } from './pdf.ts';
 import type { PlayerPerformanceReport } from './playerPerformance.ts';
 import type { MatchRecord } from '../storage/model.ts';
 
-export type PreparedPDF = { uri: string; filename: string; canView: boolean };
+import type { PreparedPDF } from '../application/ports.ts';
+export type { PreparedPDF } from '../application/ports.ts';
 
 export async function shareText(filename: string, contents: string, mimeType: string): Promise<void> {
   filename = filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 160);

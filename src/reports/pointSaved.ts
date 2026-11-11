@@ -1,7 +1,7 @@
 import type { MatchProjection } from '../domain/history.ts';
 import { stagePointLabels } from '../domain/scoring.ts';
 import type { Side } from '../domain/scoring.ts';
-import { resultLabel, setTieBreakLabel } from '../reports/report.ts';
+import { resultLabel, setTieBreakLabel } from './report.ts';
 
 export interface PointSavedSummary {
   score: string;

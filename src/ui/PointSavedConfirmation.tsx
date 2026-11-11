@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
-import type { PointSavedSummary } from './pointSaved.ts';
+import type { PointSavedSummary } from '../reports/pointSaved.ts';
 import { useTheme } from './kit.tsx';
 
 export function PointSavedConfirmation({ summary, names, onDone }: {

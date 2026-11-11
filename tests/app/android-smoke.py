@@ -16,7 +16,7 @@ args = parser.parse_args()
 if not args.serial.startswith('emulator-'):
     raise SystemExit('This test only runs on an explicitly selected emulator.')
 adb = os.environ.get('ADB_EXECUTABLE', 'adb')
-package = 'uk.tennistracker.app'
+package = 'uk.tennisnotebook.app'
 
 def run(*parts, binary=False, timeout=40):
     result = subprocess.run([adb, '-s', args.serial, *parts], capture_output=True, check=True, timeout=timeout)

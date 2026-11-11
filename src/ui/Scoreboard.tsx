@@ -8,7 +8,7 @@ import type { MatchRecord } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
 import { Button, Card, PlayerBadge, playerBadgeColors, T, useTheme } from './kit.tsx';
 import { PointSavedConfirmation } from './PointSavedConfirmation.tsx';
-import type { PointSavedSummary } from './pointSaved.ts';
+import type { PointSavedSummary } from '../reports/pointSaved.ts';
 
 const stakeLabels: Record<PointStake, string> = { match: 'Match point', set: 'Set point', break: 'Break point' };
 

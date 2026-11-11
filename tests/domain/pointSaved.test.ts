@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { replayMatch } from '../../src/domain/history.ts';
 import type { MatchEvent } from '../../src/domain/history.ts';
 import { presets } from '../../src/domain/presets.ts';
-import { pointSavedSummary } from '../../src/ui/pointSaved.ts';
+import { pointSavedSummary } from '../../src/reports/pointSaved.ts';
 
 const names = ['Stefan', 'Harry'] as const;
 const format = presets['fast4-match-tiebreak'];

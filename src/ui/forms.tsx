@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { localDate } from '../domain/matchDates.ts';
+import { matchDetailsFrom } from '../application/matchCommands.ts';
+import type { MatchDetails, MatchDetailsValues, SetupValues } from '../application/matchCommands.ts';
 import type { MatchGroup } from '../storage/matchGroups.ts';
 import type { PresetId } from '../domain/presets.ts';
 import { emptyObservations, serveEndingIssue, serveWasIn, strokes } from '../domain/points.ts';
@@ -17,29 +19,7 @@ import { ServeObservations } from './ObservationForm.tsx';
 import { OutcomeHelpButton } from './OutcomeGuide.tsx';
 
 export const modeOptions: { value: RecordingMode; label: string }[] = [{ value: 'score', label: 'Score' }, { value: 'endings', label: 'Score & last shot' }, { value: 'detailed', label: 'Score, serve & last shot' }];
-type SavedMatchDetails = Pick<MatchRecord, 'group' | 'date' | 'round' | 'venue' | 'surface' | 'courtSetting' | 'conditions'>;
-type MatchDetails = Required<SavedMatchDetails>;
-export type MatchDetailsValues = MatchDetails & { opponent: string };
 const surfaces = ['Clay', 'Artificial clay', 'Grass', 'Artificial grass (astro turf)', 'Acrylic', 'Tarmac', 'Carpet', 'Other'];
-export interface SetupValues extends MatchDetails {
-  playerId: string;
-  playerName: string;
-  opponent: string;
-  preset: PresetId;
-  mode: RecordingMode;
-}
-
-export function matchDetailsFrom(values: SavedMatchDetails): MatchDetails {
-  return {
-    group: values.group.trim(),
-    date: values.date.trim(),
-    round: values.round.trim(),
-    venue: values.venue.trim(),
-    surface: values.surface.trim(),
-    courtSetting: values.courtSetting ?? '',
-    conditions: values.conditions.trim(),
-  };
-}
 
 function MatchContextFields({ values, update }: { values: MatchDetails; update: (details: Partial<MatchDetails>) => void }) {
   return <>

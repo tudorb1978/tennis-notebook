@@ -4,15 +4,17 @@
 
 Use Node.js 24.12 or later and run `npm ci`. The app uses Expo SDK 58 with its compatible React and React Native versions. Native Android builds require Java 21, Android SDK platform 37, and the build tools selected by the generated Gradle project.
 
-Run `npm run check` for TypeScript and domain/storage tests. Tests use the real SQLite engine through Node's SQLite module and cover database transactions, reopening saved records, revisions, backups, and report generation in addition to tennis rules.
+Run `npm run check` for TypeScript, domain/storage tests, application-command tests, and dependency-boundary checks. Tests use the real SQLite engine through Node's SQLite module and cover database transactions, reopening saved records, revisions, backups, and report generation in addition to tennis rules. See [Application structure](architecture.md) for the separation between operations and layouts.
 
 Run `npm run web -- --localhost --port 8093` for a local browser preview, or `npm start` for Expo development. The web preview uses expo-sqlite WebAssembly and cross-origin isolation headers configured in `metro.config.cjs`. It is a development preview; the Android APK contains its own JavaScript bundle for offline launch.
 
 ## Android build
 
+The app name and Expo slug are `tennis-notebook`; both platform identifiers are `uk.tennisnotebook.app`. Native projects are generated from `app.json`. Regenerate them after identity changes; existing APKs still contain their original name and identifier.
+
 Set `ANDROID_HOME` and `JAVA_HOME` for your installation, then run `bash scripts/build-android.sh`. A task-specific `GRADLE_USER_HOME` can be supplied to keep build caches separate. The script generates the native Android project from app configuration and writes the preview APK and its SHA-256 checksum under `output/android`.
 
-The build includes arm64-v8a for phones and x86_64 for emulator verification. Minimum Android API is 24. Native generated projects, caches, and signing files are excluded from source control. The generated release variant uses preview signing; do not use that signing configuration for a public store release.
+The build includes arm64-v8a for phones and x86_64 for emulator verification. Minimum Android API is 24. The APK is `output/android/tennis-notebook-preview.apk`, with a matching `.sha256` file. Native generated projects, caches, and signing files are excluded from source control. The generated release variant uses preview signing; do not use that signing configuration for a public store release.
 
 ## Browser application checks
 
@@ -39,5 +41,7 @@ Choose and preserve production signing credentials before public distribution, c
 The current Expo CLI and fingerprint dependencies report moderate upstream glob/minimatch advisories affecting development tooling. No force downgrade or cross-major override is applied. Recheck supported Expo updates before a public release; these tools do not run inside the bundled Android app.
 
 ## Verified preview build
+
+The verification below describes the earlier `uk.tennistracker.app` preview. A newly packaged `uk.tennisnotebook.app` APK needs its own native verification.
 
 The current preview APK passed signature and checksum verification. Type checking and 54 automated domain, SQLite, backup, and PDF tests passed. The browser application test passed through match completion, PDF and CSV exports, and restore into empty storage. The APK also passed an Android 16 emulator trial: native recording, cold start with network disabled, recovery of a pending stroke, saved notes, detailed serve entry, and PDF sharing. A physical phone trial remains the next step.

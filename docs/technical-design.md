@@ -4,6 +4,8 @@ Use a locally stored mobile app with a scoring engine independent of the interfa
 
 ## Application layers
 
+The implemented module boundaries and rules for changing the UI are described in [Application structure](architecture.md).
+
 | Layer | Responsibility |
 | --- | --- |
 | Mobile interface | Setup, point entry, history, corrections, reports, accessibility |

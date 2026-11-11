@@ -424,8 +424,8 @@ async function createReportPDF(title: string, kind: string, assets: ReportAssets
   }
 
   doc.setTitle(title);
-  doc.setCreator('Tennis Notebook');
-  doc.setProducer('Tennis Notebook');
+  doc.setCreator('tennis-notebook');
+  doc.setProducer('tennis-notebook');
   newPage();
   render({ group, summary, playerTable, statsTable, strokeTable, pressurePoints, matchNotes, notesSummary, pointTable });
   for (const [index, item] of doc.getPages().entries()) {

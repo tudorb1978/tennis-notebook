@@ -1,5 +1,5 @@
 {
-  "name": "tennis-tracker",
+  "name": "tennis-notebook",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "web": "expo start --web",
     "test:app": "node tests/app/smoke.cjs",
     "export:android": "expo export --platform android",
-    "test": "node --test tests/domain/*.test.ts tests/storage/*.test.ts",
+    "test": "node --test tests/domain/*.test.ts tests/storage/*.test.ts tests/application/*.test.ts tests/architecture/*.test.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test"
   },
