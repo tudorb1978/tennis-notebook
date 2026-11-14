@@ -20,7 +20,7 @@ In Score & last shot mode, choose the point winner, then tap Forehand, Backhand 
 2. Close and reopen the app during a game. Try the same while the racket menu is open.
 3. Under Previous point or in History, use Edit point to correct a stroke and Add notes for observations, questionable calls, and disputes. Undo reverses the latest saved change.
 4. Switch to Score, serve & last shot. Follow the single active question from serve to return, then finish the point. Try I'm not sure / didn't see on a serve: it should still ask about the return. Use Back to revisit a choice, and reopen the app during an unfinished return to check recovery.
-5. Try Correct score next to Switch server on the scoreboard. Supply the next server. Missing points affect the official score without inventing stroke statistics.
+5. If the players have the service order wrong, tap Switch server once. The switched order stays in place across points, games, sets and tie-breaks, including after reopening the app. Tap it again to switch back. Correct score is next to it; choose the player who will actually serve next. Missing points affect the official score without inventing stroke statistics.
 6. Use Pause and Resume recording for a break in play. The clock starts at Start match, and the finished match report shows playing time with pauses deducted. Use Finish early for retirement or abandonment.
 7. Return to Matches. Open Event performance beside an event or Player performance from the match list. Choose a player and date range, then export the filtered report as a PDF.
 

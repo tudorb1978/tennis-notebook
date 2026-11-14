@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { localDate } from '../domain/matchDates.ts';
-import { matchDetailsFrom } from '../application/matchCommands.ts';
+import { matchDetailsFrom, persistentServerOrder } from '../application/matchCommands.ts';
 import type { MatchDetails, MatchDetailsValues, SetupValues } from '../application/matchCommands.ts';
 import type { MatchGroup } from '../storage/matchGroups.ts';
 import type { PresetId } from '../domain/presets.ts';
 import { emptyObservations, serveEndingIssue, serveWasIn, strokes } from '../domain/points.ts';
 import type { PointInput, Stroke } from '../domain/points.ts';
 import { pointLabels } from '../domain/scoring.ts';
+import { effectiveServer } from '../domain/serviceOrder.ts';
 import type { MatchScore, ScoreCorrection, Side } from '../domain/scoring.ts';
 import { matchNotesMaxLength } from '../storage/model.ts';
 import type { MatchRecord, PlayerProfile, RecordingMode } from '../storage/model.ts';
@@ -223,7 +224,7 @@ export function CorrectionForm({ record, score, busy, onSave }: { record: MatchR
   const current = score.current!; const rules = record.format.stages[current.index]!;
   const [games, setGames] = useState<[string, string]>(current.games.map(String) as [string, string]);
   const [points, setPoints] = useState<[string, string]>(current.phase === 'game' ? pointLabels(score).map(v => String(['0', '15', '30', '40', 'Ad'].indexOf(v))) as [string, string] : current.points.map(String) as [string, string]);
-  const [server, setServer] = useState(current.server); const [reason, setReason] = useState('Scoreboard correction');
+  const [server, setServer] = useState(effectiveServer(current.server, persistentServerOrder(record, current.server), record.draft.actualServer)); const [reason, setReason] = useState('Scoreboard correction');
   const tie = rules.kind === 'match-tie-break' || (rules.tieBreakAt !== null && Number(games[0]) === rules.tieBreakAt && Number(games[1]) === rules.tieBreakAt);
   return <Stack><Heading>Correct the score</Heading><T muted>Set the active score and next server. Missing points will not create shot statistics.</T>{record.players.map((p, i) => <Card key={i}><T bold>{p.name}</T>{rules.kind === 'set' && <Field label={`${p.name} games`} value={games[i]!} numeric maxLength={3} onChange={value => { setGames(g => { const n: [string, string] = [...g]; n[i] = value; return n; }); setPoints(['0', '0']); }} />}{tie ? <Field label={`${p.name} points`} value={points[i]!} numeric maxLength={5} onChange={value => setPoints(pv => { const n: [string, string] = [...pv]; n[i] = value; return n; })} /> : <Choices label="Points" value={points[i]!} options={['0', '15', '30', '40', 'Ad'].map((label, j) => ({ value: String(j), label }))} onChange={value => setPoints(pv => { const n: [string, string] = [...pv]; n[i] = value; return n; })} />}</Card>)}<Choices<Side> label="Next server" value={server} options={record.players.map((p, i) => ({ value: i as Side, label: p.name }))} onChange={setServer} /><Field label="Reason" value={reason} onChange={setReason} /><Button primary disabled={busy} testID="apply-correction" onPress={() => onSave({ games: games.map(v => v.trim() ? Number(v) : NaN) as [number, number], points: points.map(v => v.trim() ? Number(v) : NaN) as [number, number], nextServer: server }, reason)}>Apply correction</Button></Stack>;
 }

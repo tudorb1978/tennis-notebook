@@ -3,6 +3,8 @@ import { Text, View } from 'react-native';
 import type { MatchTiming } from '../domain/history.ts';
 import { pointLabels, pointStakes } from '../domain/scoring.ts';
 import type { MatchScore, PointStake, Side } from '../domain/scoring.ts';
+import { effectiveServer } from '../domain/serviceOrder.ts';
+import { persistentServerOrder } from '../application/matchCommands.ts';
 import { setTieBreakLabel } from '../reports/report.ts';
 import type { MatchRecord } from '../storage/model.ts';
 import { CourtLines } from './CourtLines.tsx';
@@ -59,11 +61,12 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
     if (score.current.phase === 'match-tie-break') columns.push({ label: 'MTB', values: pointLabels(score), large: true });
     else { columns.push({ label: `Set ${score.current.index + 1}`, values: score.current.games.map(String) as [string, string], large: false }); columns.push({ label: 'Points', values: pointLabels(score), large: true }); }
   }
-  const overridden = record.draft.actualServer != null;
-  const serving = score.status === 'in-progress' && !reportView ? record.draft.actualServer ?? score.current!.server : null;
+  const overridden = persistentServerOrder(record, score.current?.server);
+  const serving = score.status === 'in-progress' && !reportView
+    ? effectiveServer(score.current!.server, overridden, record.draft.actualServer) : null;
   const stakes = showPointStakes ? pointStakes(score, serving ?? undefined) : null;
   const status = serving !== null
-    ? `${record.players[serving].name} serving${overridden ? ' · this point only' : score.current!.phase !== 'game' ? ' · tie-break' : ''}`
+    ? `${record.players[serving].name} serving${overridden ? ' · order switched' : ''}${score.current!.phase !== 'game' ? ' · tie-break' : ''}`
     : score.winner !== null
       ? `${record.players[score.winner].name} wins${score.status === 'retired' ? ' by retirement' : ''}`
       : score.status === 'abandoned' ? 'Abandoned · no winner' : score.status === 'suspended' ? 'Match paused' : 'In progress';
@@ -120,11 +123,11 @@ export function Scoreboard({ record, score, timing, toggleServer, correctScore, 
       {serving !== null && (toggleServer || correctScore) && <View style={{ ...row, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '75%' }}>
         {toggleServer && <Button
           quiet testID="toggle-point-server" disabled={busy} onPress={toggleServer}
-          label={overridden ? 'Reset server, use scheduled server' : 'Switch server for this point'}
+          label={overridden ? 'Switch server back to the original order' : 'Switch server for the rest of the match'}
           style={{ paddingHorizontal: 6, paddingVertical: 4 }}
         >
           <T small muted style={{ color: c.courtInk, textAlign: 'center', textDecorationLine: 'underline' }}>
-            {overridden ? 'Reset server' : 'Switch server'}
+            Switch server
           </T>
         </Button>}
         {correctScore && <Button quiet label="Correct score" disabled={busy} onPress={correctScore} style={{ paddingHorizontal: 6, paddingVertical: 4 }}>

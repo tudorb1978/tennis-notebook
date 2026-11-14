@@ -3,6 +3,7 @@ import { replayMatch } from '../domain/history.ts';
 import type { MatchEvent } from '../domain/history.ts';
 import type { PointInput, PointObservations, Stroke } from '../domain/points.ts';
 import { other } from '../domain/scoring.ts';
+import { effectiveServer } from '../domain/serviceOrder.ts';
 import { serveEntryStep } from '../domain/serveEntry.ts';
 import type { LifecycleAction, ScoreCorrection, Side } from '../domain/scoring.ts';
 import type { ImportPreview, MatchRepository } from '../storage/repository.ts';
@@ -15,7 +16,7 @@ import type { MatchPDFVariant } from '../reports/pdf.ts';
 import { pointSavedSummary } from '../reports/pointSaved.ts';
 import type { PointSavedSummary } from '../reports/pointSaved.ts';
 import type { NotebookDependencies, PreparedPDF } from './ports.ts';
-import { appendMatchEvent, backDraftService, canRecordMatch, changeDraftObservations, createMatch, selectPointDetail as changePointDetail, selectStrokeInput, serviceEndingInput, skipDraftService, toggleDraftServer, undoMatch } from './matchCommands.ts';
+import { appendMatchEvent, backDraftService, canRecordMatch, changeDraftObservations, correctionForServerOrder, createMatch, persistentServerOrder, preparePointInput, selectPointDetail as changePointDetail, selectStrokeInput, serviceEndingInput, skipDraftService, toggleDraftServer, undoMatch } from './matchCommands.ts';
 import type { MatchDetailsValues, SetupValues } from './matchCommands.ts';
 
 type Screen = 'loading' | 'home' | 'setup' | 'match' | 'player-report';
@@ -93,12 +94,12 @@ export function useNotebook(dependencies: NotebookDependencies) {
   const addLifecycle = (action: LifecycleAction, done?: () => void, clearDraft = false) =>
     addEvent({ id: dependencies.createId(), type: 'lifecycle', action, recordedAt: dependencies.now() }, done, clearDraft);
   const savePoint = (input: PointInput) => {
-    const actualServer = record?.draft.actualServer;
+    if (!record) return;
     const event: MatchEvent = {
       id: dependencies.createId(),
       type: 'point',
       recordedAt: dependencies.now(),
-      input: actualServer == null ? input : { ...input, actualServer },
+      input: preparePointInput(record, input),
     };
     return addEvent(event, saved => {
       if (saved.firstServer !== null) {
@@ -161,7 +162,8 @@ export function useNotebook(dependencies: NotebookDependencies) {
   const canRecord = canRecordMatch(projection?.score.status);
   const tab = selectedTab === 'record' && !canRecord ? 'report' : selectedTab;
   const scheduledServer = projection?.score.current?.server;
-  const pointServer = record?.draft.actualServer ?? scheduledServer;
+  const pointServer = record && scheduledServer !== undefined
+    ? effectiveServer(scheduledServer, persistentServerOrder(record, scheduledServer), record.draft.actualServer) : undefined;
   const endingDraft = record?.draft.pending && !('winner' in record.draft.pending) ? record.draft.pending : null;
   const strokeMenuOpen = screen === 'match' && tab === 'record' && projection?.score.status === 'in-progress'
     && endingDraft !== null && panel === null && !guideOpen;
@@ -278,9 +280,11 @@ export function useNotebook(dependencies: NotebookDependencies) {
     if (record?.mode === mode) { setPanel(null); return; }
     return mutate(m => ({ ...m, mode }), () => setPanel(null));
   };
-  const correctScore = (correction: ScoreCorrection, reason: string) => addEvent(
-    { id: dependencies.createId(), type: 'correction', correction, reason }, () => setPanel(null), true,
-  );
+  const correctScore = (correction: ScoreCorrection, reason: string) => {
+    if (!record) return;
+    return addEvent({ id: dependencies.createId(), type: 'correction', correction: correctionForServerOrder(record, correction), reason },
+      () => setPanel(null), true);
+  };
   const finishMatch = (kind: 'retire' | 'abandon', player: Side) => addLifecycle(
     kind === 'retire' ? { type: 'retire', player } : { type: 'abandon' },
     () => { setPanel(null); setTab('report'); }, true,

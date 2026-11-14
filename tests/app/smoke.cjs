@@ -130,8 +130,9 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await page.getByTestId('first-server-0').click();
     await page.getByTestId('start-match').click();await expect(page.getByTestId('point-winner-0')).toBeVisible();await idle();
   };
-  const correction=async(games,score,nextServer='Jamie')=>{
+  const correction=async(games,score,nextServer='Jamie',expectedServer)=>{
     await button('Correct score').click();
+    if(expectedServer)await expect(page.getByText('Next server',{exact:true}).locator('..').getByRole('button',{name:expectedServer,exact:true})).toHaveAttribute('aria-pressed','true');
     for(let i=0;i<2;i++)await page.getByRole('textbox',{name:`${i?'Jamie':'Alex'} games`,exact:true}).fill(String(games[i]));
     if(games[0]===3&&games[1]===3){
       for(let i=0;i<2;i++)await page.getByRole('textbox',{name:`${i?'Jamie':'Alex'} points`,exact:true}).fill(String(score[i]));
@@ -200,10 +201,10 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await button('Change winner').click();
     const otherServer=page.getByTestId('toggle-point-server');
     await expect(otherServer.locator('..').getByRole('button',{name:'Correct score',exact:true})).toBeVisible();
-    await otherServer.click();await expect(page.getByText('Jamie serving · this point only',{exact:true})).toBeVisible();
+    await otherServer.click();await expect(page.getByText('Jamie serving · order switched',{exact:true})).toBeVisible();
     await otherServer.click();await expect(page.getByText('Alex serving',{exact:true})).toBeVisible();
-    await otherServer.click();await expect(page.getByText('Jamie serving · this point only',{exact:true})).toBeVisible();
-    await page.reload({waitUntil:'domcontentloaded'});await expect(page.getByText('Jamie serving · this point only',{exact:true})).toBeVisible();
+    await otherServer.click();await expect(page.getByText('Jamie serving · order switched',{exact:true})).toBeVisible();
+    await page.reload({waitUntil:'domcontentloaded'});await expect(page.getByText('Jamie serving · order switched',{exact:true})).toBeVisible();
     await pickWinner(0);await expect(rallyEnding).toBeVisible();
     await page.reload({waitUntil:'domcontentloaded'});await expect(page.getByText('Alex won the point',{exact:true})).toBeVisible();
     await moreShots(0,'winner');await points('0','0');await noPointSaved();
@@ -221,13 +222,15 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await pointSaved('15–0','Set 1 · Games 0–0',0);
     assert.equal((await page.getByTestId('point-winner-0').boundingBox()).y,entryTop);
     await expect(page.getByText('Previous point · Alex',{exact:true})).toBeVisible();
+    await expect(page.getByText('Jamie serving · order switched',{exact:true})).toBeVisible();
+    await expect(otherServer).toHaveAccessibleName('Switch server back to the original order');
     await otherServer.click();await noPointSaved();
-    await otherServer.click();await noPointSaved();
+    await expect(otherServer).toHaveAccessibleName('Switch server for the rest of the match');
     console.log('PASS Direct shot entry follows fixed player order, and More shot types restores or cancels without saving');
     await expect(page.getByText('Alex serving',{exact:true})).toBeVisible();
     await page.getByTestId('tab-history').click();await expect(page.getByText('Jamie served · out of turn',{exact:true})).toBeVisible();
     await page.getByTestId('tab-record').click();
-    console.log('PASS Actual server survives reload, is flagged in history, and applies to one point');
+    console.log('PASS Switched service survives reload and the saved point until manually restored; history records the actual server');
 
     await page.clock.setFixedTime(new Date('2026-11-05T12:00:05Z'));
     await expect(matchClock).toHaveText('Playing time · 00:05');
@@ -497,12 +500,15 @@ const output=process.env.TEST_OUTPUT||'/tmp';
     await page.reload({waitUntil:'domcontentloaded'});await serviceQuestion('point-ending',true);
     await expect(page.getByText('Alex missed the return',{exact:true})).toBeVisible();
     await expect(generalEnding).toHaveCount(0);await button('Unforced error').click();await points('0','15');
-    await otherServer.click();await page.getByTestId('first-in').click();await serviceQuestion('return-result');
+    await expect(page.getByText('Jamie serving · order switched',{exact:true})).toBeVisible();
+    await page.getByTestId('first-in').click();await serviceQuestion('return-result');
     await page.getByTestId('return-result-error').click();await serviceQuestion('return-stroke');
     await page.getByTestId('return-stroke-forehand').click();await serviceQuestion('point-ending',true);
     await button('Not sure which error').click();await points('0','30');
     await expect(page.getByText('Previous point · Jamie',{exact:true}).locator('..').getByText('Outcome only',{exact:true})).toBeVisible();
     await page.getByTestId('undo').click();await points('0','15');
+    await expect(page.getByText('Jamie serving · order switched',{exact:true})).toBeVisible();
+    await otherServer.click();await expect(page.getByText('Alex serving',{exact:true})).toBeVisible();
     console.log('PASS Missed-return classification follows stroke entry, restores explicit unknown answers and awards the actual server');
 
     await button('Add notes').click();
@@ -964,6 +970,67 @@ const output=process.env.TEST_OUTPUT||'/tmp';
       assert.deepEqual({...edited,players:fixture.players,revision:fixture.revision,updatedAt:fixture.updatedAt},fixture);
     }
     console.log('PASS Opponent edits trim names, reject empty input, survive reload in every match state and preserve all scoring, point, stroke, draft and note data');
+
+    // Keep service-order coverage separate so the main report fixtures retain their original totals.
+    await context.close();context=await browser.newContext({viewport:{width:390,height:915},acceptDownloads:true});page=await context.newPage();wire();
+    await page.goto(base,{waitUntil:'domcontentloaded'});await button('Start recording your first match').click();
+    await page.getByTestId('new-player-name').fill('Alex');await page.getByTestId('opponent-name').fill('Jamie');
+    await page.getByTestId('fast4-match-tiebreak').click();await page.getByTestId('recording-depth-detailed').click();
+    await page.getByTestId('save-match').click();await openStart('Jamie');
+    await page.getByTestId('first-server-0').click();await page.getByTestId('start-match').click();await serviceQuestion('first-serve');
+    const persistentToggle=page.getByTestId('toggle-point-server');
+    const serviceStatus=async(name,switched=true)=>{
+      const status=page.getByText(new RegExp(`^${name} serving(?: ·.*)?$`));
+      await expect(status).toBeVisible();
+      if(switched)await expect(status).toContainText('order switched');else await expect(status).not.toContainText('order switched');
+      await expect(persistentToggle).toHaveAccessibleName(switched?'Switch server back to the original order':'Switch server for the rest of the match');
+      await expect(persistentToggle).toHaveText('Switch server');
+    };
+    await serviceStatus('Alex',false);await persistentToggle.click();await serviceStatus('Jamie');
+    for(const [index,score]of ['15','30','40','0'].entries()){
+      await expect(page.getByTestId('first-in')).toHaveCSS('background-color','rgb(223, 235, 245)');
+      await page.getByTestId('serve-ace').click();await points('0',score);
+      if(index===1){
+        await button('Pause').click();await expect(button('Resume recording')).toBeVisible();
+        await page.reload({waitUntil:'domcontentloaded'});await expect(button('Resume recording')).toBeVisible();await points('0','30');
+        await button('Resume recording').click();await serviceQuestion('first-serve');
+      }
+      await serviceStatus(index===3?'Alex':'Jamie');
+    }
+    await page.reload({waitUntil:'domcontentloaded'});await serviceStatus('Alex');
+    await expect(page.getByTestId('first-in')).toHaveCSS('background-color','rgb(224, 242, 174)');
+    await correction([0,0],[0,0],'Jamie','Alex');await serviceStatus('Jamie');
+    await correction([0,0],[0,3],'Alex','Jamie');await serviceStatus('Alex');
+    await expect(page.getByTestId('point-stakes-1')).toHaveText('Jamie · Break point');
+    await page.getByTestId('serve-ace').click();await points('15','40');await serviceStatus('Alex');
+    await page.getByTestId('tab-report').click();
+    await expect(page.getByLabel('Jamie, Aces: 4',{exact:true})).toBeVisible();
+    await expect(page.getByLabel('Alex, Aces: 1',{exact:true})).toBeVisible();
+    await expect(page.getByLabel('Jamie, First serves in: 100% (4/4)',{exact:true})).toBeVisible();
+    await expect(page.getByLabel('Alex, First serves in: 100% (1/1)',{exact:true})).toBeVisible();
+    await expect(page.getByLabel('Jamie, Break points · Own chances: 0 won · 1 lost',{exact:true})).toBeVisible();
+    await expect(page.getByLabel('Alex, Break points · Faced: 1 saved · 0 lost',{exact:true})).toBeVisible();
+    await page.getByTestId('tab-record').click();
+    await page.getByTestId('recording-mode').click();await button('Score').click();await serviceStatus('Alex');
+    await correction([3,3],[0,0],'Jamie','Alex');
+    const tieBreakServers=['Jamie','Alex','Alex','Jamie','Jamie','Alex','Alex'];
+    for(const [index,name]of tieBreakServers.entries()){
+      await serviceStatus(name);await pickWinner(0);
+      await points(index===6?'0':String(index+1),'0');
+    }
+    await serviceStatus('Alex');await expect(page.getByText('Set 2',{exact:true})).toBeVisible();
+    await page.reload({waitUntil:'domcontentloaded'});await serviceStatus('Alex');
+    await correction([0,3],[0,3],'Alex','Alex');await pickWinner(1);await points('0','0');
+    await expect(page.getByText('MTB',{exact:true})).toBeVisible();await serviceStatus('Jamie');
+    await pickWinner(0);await points('1','0');await serviceStatus('Alex');
+    await page.reload({waitUntil:'domcontentloaded'});await points('1','0');await serviceStatus('Alex');
+    await persistentToggle.click();await serviceStatus('Jamie',false);
+    await pickWinner(1);await points('1','1');await serviceStatus('Jamie',false);
+    await page.getByTestId('back-to-matches').click();await button('Settings').click();const switchedBackup=await settingsBackup();
+    const switchedMatch=switchedBackup.matches[0];assert.equal(Boolean(switchedMatch.serverOrderSwitched),false);
+    const servicePoints=switchedMatch.events.filter(event=>event.type==='point');
+    assert.deepEqual(servicePoints.map(event=>event.input.actualServer),[1,1,1,1,0,1,0,0,1,1,0,0,0,1,1]);
+    console.log('PASS Service order persists across points, games, sets, tie-breaks, pause and reload; corrections, colours, pressure and serve statistics use the actual server until manually restored');
     assert.deepEqual(errors,[]);console.log('PASS Restore into an empty installation, duplicate import, narrow layout, and no runtime errors');
   }catch(error){console.error((await page.locator('body').innerText()).slice(-6000));await page.screenshot({path:path.join(output,'tennis-app-failure.png'),fullPage:true});throw error;}
   finally{await browser.close();}

@@ -47,6 +47,8 @@ Exact button arrangements and tap counts will be tried on a phone before the int
 
 ## Corrections and interruptions
 
+Switch server reverses the current service order until the observer switches it again. Normal game and tie-break rotation continues within that order, across set boundaries and app restarts. Save the actual server with each point so later switches do not change the service statistics of earlier points. The correction form's Next server choice always identifies the actual player, including while the order is switched.
+
 Undo must be immediately accessible. Earlier points can also be edited through a point history. Preview score and service-order consequences when changing an earlier winner, particularly across game and set boundaries.
 
 Treat a point with a known winner but unknown details differently from a score jump over an unknown number of points. Neither should invent serve or shot statistics.

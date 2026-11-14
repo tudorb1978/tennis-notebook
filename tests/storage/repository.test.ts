@@ -96,6 +96,70 @@ test('Guided serve steps survive reopening and backup restoration without invent
   } finally { db.close(); await rm(folder, { recursive: true, force: true }); }
 });
 
+test('A switched service order survives cleared drafts, database reopening and backup restoration', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'tennis-server-order-')); const path = join(folder, 'matches.db');
+  let db = new DatabaseSync(path);
+  try {
+    let repo = new MatchRepository(adapter(db)); await repo.initialize();
+    let match = await repo.createMatch({ ...fixture(), serverOrderSwitched: true }, player);
+    assert(match.firstServer !== null);
+    const events = appendEvent(match.format, match.firstServer, match.events, {
+      id: 'switched-double-fault', type: 'point', input: { type: 'double-fault', actor: 1, actualServer: 1 },
+    });
+    match = await repo.saveMatch({ ...match, events, draft: emptyDraft() }, match.revision);
+    await repo.createMatch({ ...fixture('scheduled-order'), serverOrderSwitched: false }, null);
+
+    db.close(); db = new DatabaseSync(path); repo = new MatchRepository(adapter(db)); await repo.initialize();
+    const restored = (await repo.getMatch(match.id))!;
+    assert.equal(restored.serverOrderSwitched, true);
+    assert.deepEqual(restored.draft, emptyDraft());
+    assert(restored.firstServer !== null);
+    const projection = replayMatch(restored.format, restored.firstServer, restored.events);
+    assert.equal(projection.points[0]!.server, 1);
+    assert.equal(projection.stats.players[1].doubleFaults, 1);
+    assert.equal(projection.stats.players[0].doubleFaults, 0);
+
+    const backupText = await repo.backup();
+    const parsed = parseBackup(backupText);
+    assert.equal(parsed.matches.find(saved => saved.id === match.id)!.serverOrderSwitched, true);
+    assert.equal(parsed.matches.find(saved => saved.id === 'scheduled-order')!.serverOrderSwitched, false);
+    const imported = await memory();
+    try {
+      await imported.repo.importNew(backupText);
+      const copied = (await imported.repo.getMatch(match.id))!;
+      assert.equal(copied.serverOrderSwitched, true);
+      assert.deepEqual(copied.events, restored.events);
+      assert.deepEqual(copied.draft, emptyDraft());
+      assert.equal((await imported.repo.getMatch('scheduled-order'))!.serverOrderSwitched, false);
+    } finally { imported.db.close(); }
+  } finally { db.close(); await rm(folder, { recursive: true, force: true }); }
+});
+
+test('Service-order validation rejects invalid values and accepts older records with a pending override', async () => {
+  const { db, repo } = await memory();
+  try {
+    for (const serverOrderSwitched of [null, 'true', 1, {}, []]) {
+      const invalid = { ...fixture(), serverOrderSwitched } as unknown as MatchRecord;
+      await assert.rejects(repo.createMatch(invalid, player));
+      await assert.rejects(repo.importNew(JSON.stringify({
+        schemaVersion: 1, application: 'tennis-tracker', exportedAt: player.createdAt, players: [player], matches: [invalid],
+      })));
+    }
+    assert.deepEqual(await repo.players(), []);
+    assert.deepEqual(await repo.matches(), []);
+
+    const legacy = await repo.createMatch({ ...fixture(), draft: { ...emptyDraft(), actualServer: 1 } }, player);
+    assert.equal(legacy.serverOrderSwitched, undefined);
+    assert.equal((await repo.getMatch(legacy.id))!.draft.actualServer, 1);
+    const backup = parseBackup(await repo.backup());
+    assert.equal(backup.matches[0]!.serverOrderSwitched, undefined);
+    assert.equal(backup.matches[0]!.draft.actualServer, 1);
+    const invalidUpdate = { ...legacy, serverOrderSwitched: null } as unknown as MatchRecord;
+    await assert.rejects(repo.saveMatch(invalidUpdate, legacy.revision));
+    assert.deepEqual(await repo.getMatch(legacy.id), legacy);
+  } finally { db.close(); }
+});
+
 test('Guided serve step validation rejects malformed values and accepts older drafts without a step', async () => {
   const { db, repo } = await memory();
   try {

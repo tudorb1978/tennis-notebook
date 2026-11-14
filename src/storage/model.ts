@@ -33,6 +33,7 @@ interface MatchDetails {
   matchNotes?: string;
   format: MatchFormat;
   mode: RecordingMode;
+  serverOrderSwitched?: boolean;
   events: readonly MatchEvent[];
   draft: MatchDraft;
 }
@@ -70,6 +71,9 @@ export function validateMatch(value: unknown): asserts value is MatchRecord {
     throw new Error('Invalid court setting.');
   }
   if (!['score', 'endings', 'detailed'].includes(value.mode as string)) throw new Error('Invalid recording mode.');
+  if (value.serverOrderSwitched !== undefined && typeof value.serverOrderSwitched !== 'boolean') {
+    throw new Error('Invalid service order setting.');
+  }
   if (!Array.isArray(value.events) || value.events.length > 20000) throw new Error('Invalid match history.');
   object(value.draft); object(value.draft.observations);
   if (value.draft.serveStep !== undefined && !serveEntrySteps.includes(value.draft.serveStep as ServeEntryStep)) {

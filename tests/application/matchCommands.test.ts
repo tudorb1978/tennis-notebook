@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  appendMatchEvent, backDraftService, canRecordMatch, changeDraftObservations, createMatch,
-  selectPointDetail, selectStrokeInput, serviceEndingInput, skipDraftService, toggleDraftServer, undoMatch,
+  appendMatchEvent, backDraftService, canRecordMatch, changeDraftObservations, correctionForServerOrder, createMatch,
+  preparePointInput, selectPointDetail, selectStrokeInput, serviceEndingInput, skipDraftService, toggleDraftServer, undoMatch,
 } from '../../src/application/matchCommands.ts';
 import type { CommandRuntime, SetupValues } from '../../src/application/matchCommands.ts';
 import { replayMatch } from '../../src/domain/history.ts';
 import type { MatchEvent } from '../../src/domain/history.ts';
 import { emptyObservations } from '../../src/domain/points.ts';
+import type { PointInput } from '../../src/domain/points.ts';
+import { presets } from '../../src/domain/presets.ts';
+import { effectiveServer } from '../../src/domain/serviceOrder.ts';
 import { emptyDraft, validateMatch } from '../../src/storage/model.ts';
 import type { MatchRecord, StartedMatchRecord } from '../../src/storage/model.ts';
 import type { MatchGroup } from '../../src/storage/matchGroups.ts';
@@ -28,6 +31,9 @@ function fixture(): StartedMatchRecord {
   return { ...match, firstServer: 0, timingStartedAt: now };
 }
 const point: MatchEvent = { id: 'point-1', type: 'point', input: { type: 'winner-only', winner: 0 } };
+function savePoint(match: MatchRecord, input: PointInput, id: string): MatchRecord {
+  return appendMatchEvent(match, { id, type: 'point', input: preparePointInput(match, input) }, true);
+}
 
 test('Match setup constructs a valid unstarted record without mutating form data or inventing play', () => {
   const input = structuredClone(values);
@@ -58,11 +64,13 @@ test('Match setup constructs a valid unstarted record without mutating form data
 
 test('Adding a match to an event preserves its identity and historical rules snapshot', () => {
   const latest = fixture();
+  latest.serverOrderSwitched = true;
   latest.format = { ...latest.format, name: 'Earlier FAST4 rules', serviceLet: 'play-on' };
   const event: MatchGroup = { key: 'event-existing', name: latest.group, dateLabel: latest.date, named: true, latest, matches: [latest] };
   const { match } = createMatch(values, [player], event, runtime());
   assert.equal(match.eventId, event.key);
   assert.deepEqual(match.format, latest.format);
+  assert.equal(match.serverOrderSwitched, undefined, 'A service-order mistake belongs only to the original match.');
   const changed = createMatch({ ...values, preset: 'normal-best-of-three' }, [player], event, runtime()).match;
   assert.equal(changed.eventId, event.key);
   assert.equal(changed.format.id, 'normal-best-of-three');
@@ -118,8 +126,117 @@ test('Serve draft commands preserve recovery data and explicitly skipped answers
   assert.equal(original.draft.pending, null);
   assert.equal(original.draft.serveStep, 'first-serve');
   const switched = toggleDraftServer(fixture(), 0);
-  assert.equal(switched.draft.actualServer, 1);
-  assert.equal(toggleDraftServer(switched, 0).draft.actualServer, null);
+  assert.equal(switched.serverOrderSwitched, true);
+  assert.equal(switched.draft.actualServer, null);
+  assert.equal(toggleDraftServer(switched, 0).serverOrderSwitched, false);
+});
+
+test('A server switch persists across saved points and a game until it is explicitly switched back', () => {
+  const original = fixture();
+  let match = toggleDraftServer(original, 0);
+  for (let i = 0; i < 4; i++) {
+    match = savePoint(match, serviceEndingInput(match, 'ace', 1), `ace-${i}`);
+    assert.equal(match.serverOrderSwitched, true);
+    assert.deepEqual(match.draft, emptyDraft());
+  }
+  let projection = replayMatch(match.format, match.firstServer!, match.events);
+  assert.deepEqual(projection.points.map(point => point.server), [1, 1, 1, 1]);
+  assert.deepEqual(projection.score.current!.games, [0, 1]);
+  assert.equal(projection.score.current!.server, 1);
+  assert.equal(effectiveServer(projection.score.current!.server, match.serverOrderSwitched), 0);
+  assert.equal(projection.stats.players[1].aces, 4);
+
+  match = savePoint(match, serviceEndingInput(match, 'ace', 0), 'next-game-ace');
+  projection = replayMatch(match.format, match.firstServer!, match.events);
+  assert.equal(projection.points.at(-1)!.server, 0);
+  assert.equal(projection.stats.players[0].aces, 1);
+  assert.equal(match.serverOrderSwitched, true);
+  const restored = toggleDraftServer(match, projection.score.current!.server);
+  assert.equal(restored.serverOrderSwitched, false);
+  assert.equal(preparePointInput(restored, { type: 'winner-only', winner: 0 }).actualServer, 1);
+  assert.equal(original.serverOrderSwitched, undefined);
+  assert.deepEqual(original.events, []);
+});
+
+test('A persistent switch follows baseline service rotation through set and tie-break boundaries', () => {
+  let match: MatchRecord = { ...fixture(), format: presets['fast4-match-tiebreak'], serverOrderSwitched: true };
+  match = appendMatchEvent(match, {
+    id: 'first-set-score', type: 'correction', reason: 'Current score',
+    correction: correctionForServerOrder(match, { games: [3, 0], points: [3, 0], nextServer: 0 }),
+  });
+  match = savePoint(match, serviceEndingInput(match, 'ace', 0), 'first-set-ace');
+  let projection = replayMatch(match.format, match.firstServer!, match.events);
+  assert.equal(projection.score.current!.index, 1);
+  assert.equal(projection.score.current!.server, 0);
+  assert.equal(preparePointInput(match, { type: 'winner-only', winner: 1 }).actualServer, 1);
+
+  match = appendMatchEvent(match, {
+    id: 'second-set-score', type: 'correction', reason: 'Current score',
+    correction: correctionForServerOrder(match, { games: [3, 3], points: [6, 6], nextServer: 1 }),
+  });
+  assert.equal(preparePointInput(match, { type: 'winner-only', winner: 1 }).actualServer, 1);
+  match = savePoint(match, { type: 'winner-only', winner: 1 }, 'tie-seven-six');
+  assert.equal(preparePointInput(match, { type: 'winner-only', winner: 1 }).actualServer, 0);
+  match = savePoint(match, { type: 'winner-only', winner: 1 }, 'tie-eight-six');
+  projection = replayMatch(match.format, match.firstServer!, match.events);
+  assert.deepEqual(projection.score.stagesWon, [1, 1]);
+  assert.equal(projection.score.current!.phase, 'match-tie-break');
+  assert.equal(match.serverOrderSwitched, true);
+
+  const servers: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    const input = preparePointInput(match, { type: 'winner-only', winner: 0 });
+    servers.push(input.actualServer!);
+    match = savePoint(match, input, `match-tie-point-${i}`);
+  }
+  assert.deepEqual(servers, [0, 1, 1, 0, 0]);
+  assert.equal(match.serverOrderSwitched, true);
+});
+
+test('Undo, delete and edit retain the switch and historical service attribution', () => {
+  let match = toggleDraftServer(fixture(), 0);
+  match = savePoint(match, serviceEndingInput(match, 'ace', 1), 'ace');
+  match = savePoint(match, serviceEndingInput(match, 'double-fault', 1), 'double-fault');
+  const undone = undoMatch(match, 'undo-double-fault');
+  let projection = replayMatch(undone.format, undone.firstServer!, undone.events);
+  assert.equal(undone.serverOrderSwitched, true);
+  assert.deepEqual(projection.score.current!.points, [0, 1]);
+  assert.equal(projection.stats.players[1].aces, 1);
+  assert.equal(projection.stats.players[1].doubleFaults, 0);
+  assert.equal(preparePointInput(undone, { type: 'winner-only', winner: 0 }).actualServer, 1);
+
+  const deleted = appendMatchEvent(match, { id: 'delete', type: 'delete-point', targetId: 'double-fault' }, true);
+  assert.equal(deleted.serverOrderSwitched, true);
+  assert.deepEqual(replayMatch(deleted.format, deleted.firstServer!, deleted.events).stats, projection.stats);
+
+  const switchedBack = toggleDraftServer(deleted, projection.score.current!.server);
+  const edited = appendMatchEvent(switchedBack, {
+    id: 'edit', type: 'edit-point', targetId: 'ace',
+    input: { type: 'double-fault', actor: 1, actualServer: 1 },
+  }, true);
+  projection = replayMatch(edited.format, edited.firstServer!, edited.events);
+  assert.equal(edited.serverOrderSwitched, false);
+  assert.deepEqual(projection.score.current!.points, [1, 0]);
+  assert.equal(projection.points[0]!.server, 1);
+  assert.equal(projection.stats.players[1].aces, 0);
+  assert.equal(projection.stats.players[1].doubleFaults, 1);
+});
+
+test('Legacy pending server overrides retain the current side when promoted across draft resets', () => {
+  const legacy: MatchRecord = { ...fixture(), draft: { ...emptyDraft(), actualServer: 1 } };
+  const prepared = preparePointInput(legacy, { type: 'winner-only', winner: 1 });
+  assert.equal(prepared.actualServer, 1);
+  const saved = savePoint(legacy, prepared, 'legacy-point');
+  assert.equal(saved.serverOrderSwitched, true);
+  assert.deepEqual(saved.draft, emptyDraft());
+  assert.equal(preparePointInput(saved, { type: 'winner-only', winner: 0 }).actualServer, 1);
+  assert.equal(undoMatch({ ...legacy, events: [point] }, 'legacy-undo').serverOrderSwitched, true);
+  assert.equal(toggleDraftServer(legacy, 0).serverOrderSwitched, false);
+
+  const explicit: MatchRecord = { ...legacy, serverOrderSwitched: false };
+  assert.equal(preparePointInput(explicit, { type: 'winner-only', winner: 0 }).actualServer, 1);
+  assert.equal(preparePointInput(explicit, { type: 'winner-only', winner: 0, actualServer: 0 }).actualServer, 0);
+  assert.equal(savePoint(explicit, { type: 'winner-only', winner: 0 }, 'explicit-point').serverOrderSwitched, false);
 });
 
 test('Stroke selection produces the same business input independently of screen arrangement', () => {

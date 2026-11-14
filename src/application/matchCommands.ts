@@ -4,7 +4,8 @@ import type { PointInput, PointObservations, Stroke } from '../domain/points.ts'
 import { presets } from '../domain/presets.ts';
 import type { PresetId } from '../domain/presets.ts';
 import { other } from '../domain/scoring.ts';
-import type { MatchScore, Side } from '../domain/scoring.ts';
+import type { MatchScore, ScoreCorrection, Side } from '../domain/scoring.ts';
+import { effectiveServer } from '../domain/serviceOrder.ts';
 import { answerServeEntry, previousServeEntryStep, serveEntryStep, skipServeEntry } from '../domain/serveEntry.ts';
 import type { MatchGroup } from '../storage/matchGroups.ts';
 import { emptyDraft } from '../storage/model.ts';
@@ -64,7 +65,8 @@ export function createMatch(values: SetupValues, players: readonly PlayerProfile
 
 export function appendMatchEvent(match: MatchRecord, event: MatchEvent, clearDraft = false): MatchRecord {
   if (match.firstServer === null) throw new Error('Start the match before recording play.');
-  return { ...match, events: appendEvent(match.format, match.firstServer, match.events, event), draft: clearDraft ? emptyDraft() : match.draft };
+  const savedOrder = clearDraft ? preserveLegacyServerOrder(match) : match;
+  return { ...savedOrder, events: appendEvent(match.format, match.firstServer, match.events, event), draft: clearDraft ? emptyDraft() : match.draft };
 }
 
 export function undoMatch(match: MatchRecord, id: string): MatchRecord {
@@ -72,7 +74,7 @@ export function undoMatch(match: MatchRecord, id: string): MatchRecord {
   if (!canRecordMatch(replayMatch(match.format, match.firstServer, match.events).score.status)) {
     throw new Error('Finished matches cannot be undone.');
   }
-  return { ...match, events: undoLast(match.format, match.firstServer, match.events, id), draft: emptyDraft() };
+  return { ...preserveLegacyServerOrder(match), events: undoLast(match.format, match.firstServer, match.events, id), draft: emptyDraft() };
 }
 
 export function changeDraftObservations(match: MatchRecord, observations: PointObservations): MatchRecord {
@@ -92,7 +94,35 @@ export function selectPointDetail(match: MatchRecord, pending: MatchDraft['pendi
 }
 
 export function toggleDraftServer(match: MatchRecord, scheduledServer: Side): MatchRecord {
-  return { ...match, draft: { ...match.draft, actualServer: match.draft.actualServer == null ? other(scheduledServer) : null } };
+  const current = effectiveServer(scheduledServer, persistentServerOrder(match, scheduledServer), match.draft.actualServer);
+  return { ...match, serverOrderSwitched: other(current) !== scheduledServer, draft: { ...match.draft, actualServer: null } };
+}
+
+/** Older versions kept the selection in the current draft. Retain that choice on upgrade. */
+export function persistentServerOrder(match: MatchRecord, scheduledServer?: Side): boolean {
+  if (match.serverOrderSwitched !== undefined) return match.serverOrderSwitched;
+  if (match.draft.actualServer == null || match.firstServer === null) return false;
+  const scheduled = scheduledServer ?? replayMatch(match.format, match.firstServer, match.events).score.current?.server;
+  return scheduled !== undefined && match.draft.actualServer !== scheduled;
+}
+
+function preserveLegacyServerOrder(match: MatchRecord): MatchRecord {
+  return match.serverOrderSwitched === undefined && match.draft.actualServer != null
+    ? { ...match, serverOrderSwitched: persistentServerOrder(match) } : match;
+}
+
+/** Snapshot the server on each new point so later switches cannot rewrite its statistics. */
+export function preparePointInput(match: MatchRecord, input: PointInput): PointInput {
+  if (match.firstServer === null) throw new Error('Start the match before recording play.');
+  const score = replayMatch(match.format, match.firstServer, match.events).score;
+  if (score.status !== 'in-progress' || !score.current) throw new Error('The match is not in progress.');
+  return { ...input, actualServer: input.actualServer ?? effectiveServer(score.current.server,
+    persistentServerOrder(match, score.current.server), match.draft.actualServer) };
+}
+
+/** The form selects an actual player; the scoring engine stores its baseline service order. */
+export function correctionForServerOrder(match: MatchRecord, correction: ScoreCorrection): ScoreCorrection {
+  return { ...correction, nextServer: effectiveServer(correction.nextServer, persistentServerOrder(match)) };
 }
 
 export function selectStrokeInput(match: MatchRecord, value: Stroke, allowServeStroke: boolean): PointInput | null {
